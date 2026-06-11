@@ -109,13 +109,34 @@ https://<あなたのVercel URL>/api/mcp
 
 ## ⑥ Claude アプリにカスタム MCP コネクタとして追加
 
-1. Claude アプリ（デスクトップ / web）の **Settings → Connectors → Add custom connector**。
+> ⚠️ **重要**: Claude アプリ（web / デスクトップ）の「Add custom connector」UI は
+> OAuth しか設定できず、Bearer トークンやカスタムヘッダを入れる欄がありません
+> （2026 時点）。そこでこのサーバーは **URL のクエリでトークンを渡す方式**にも対応しています。
+> アプリからはこちらを使います。
+
+1. Claude アプリの **Settings → Connectors → Add custom connector**。
 2. 入力:
    - **Name**: `Second Brain`（任意）
-   - **URL**: ⑤のエンドポイント `https://.../api/mcp`
-3. 認証は **Bearer トークン**。トークン欄に③の `MCP_SECRET_TOKEN` をそのまま入力。
-   - （UI に「Authorization ヘッダ」を直接書く欄がある場合は `Bearer <トークン>` と入力）
-4. 保存して接続。ツール一覧に `add_memo` など 10 個が出れば成功。
+   - **URL**: エンドポイントの末尾に `?token=<MCP_SECRET_TOKEN>` を付けた URL
+     ```
+     https://<あなたのVercel URL>/api/mcp?token=ここにMCP_SECRET_TOKEN
+     ```
+3. 保存して接続。ツール一覧に `add_memo` など 10 個が出れば成功。
+
+### 認証方式について
+このサーバーは次の 2 通りでトークンを受け付けます（どちらか一致すればOK）:
+- `Authorization: Bearer <TOKEN>` ヘッダ … Claude Code / API / デスクトップ設定ファイル向け
+- `?token=<TOKEN>`（`?key=` も可）クエリ … Claude アプリのコネクタ UI 向け
+
+> 🔐 URL にトークンを含めるのはアプリUIの制約による回避策です。URL 自体が秘密になるので
+> 共有しないでください。漏れたら Vercel の `MCP_SECRET_TOKEN` を新しい値に変えて再デプロイすれば無効化できます。
+
+#### 参考: Claude Code から繋ぐ場合（ヘッダ方式）
+```bash
+claude mcp add second-brain --transport http \
+  --header "Authorization: Bearer <MCP_SECRET_TOKEN>" \
+  https://<あなたのVercel URL>/api/mcp
+```
 
 接続できたらチャットでそのまま使えます。例:
 - 「`add_memo` でこれメモして: 〇〇」→ 保存され、関連候補が返るのでリンクするか相談

@@ -225,7 +225,11 @@ const handler = createMcpHandler(
   },
 );
 
-// ---- 単一ユーザー用 Bearer 認証ラッパー ----
+// ---- 単一ユーザー用の認証ラッパー ----
+// 2 通りの渡し方を受け付ける:
+//   (1) Authorization: Bearer <TOKEN>       … Claude Code / API / デスクトップ設定向け
+//   (2) URL クエリ ?token=<TOKEN> (?key= も可) … Claude アプリのコネクタUI向け
+//       （アプリのコネクタUIはヘッダを設定できず URL しか入れられないため）
 function withBearer(
   inner: (req: Request) => Response | Promise<Response>,
 ): (req: Request) => Promise<Response> {
@@ -237,10 +241,19 @@ function withBearer(
         { status: 500 },
       );
     }
+
+    // (1) Authorization ヘッダ
     const auth = req.headers.get("authorization") ?? "";
     const expected = `Bearer ${token}`;
-    // 長さが違えば即不一致。長さが同じならタイミング非依存に比較。
-    if (auth.length !== expected.length || !timingSafeEqual(auth, expected)) {
+    const headerOk =
+      auth.length === expected.length && timingSafeEqual(auth, expected);
+
+    // (2) URL クエリ
+    const url = new URL(req.url);
+    const q = url.searchParams.get("token") ?? url.searchParams.get("key") ?? "";
+    const queryOk = q.length === token.length && timingSafeEqual(q, token);
+
+    if (!headerOk && !queryOk) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     return inner(req);
