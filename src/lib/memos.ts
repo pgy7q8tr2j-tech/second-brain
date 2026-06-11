@@ -254,6 +254,17 @@ export async function completeTask(id: string): Promise<Memo | null> {
 }
 
 // ============================================================
+// delete_memo
+// メモを1件削除する。関連リンクは ON DELETE CASCADE で自動削除。
+// ============================================================
+export async function deleteMemo(id: string): Promise<Memo | null> {
+  const rows = (await sql`
+    DELETE FROM memos WHERE id = ${id}::uuid RETURNING *
+  `) as Memo[];
+  return rows[0] ?? null;
+}
+
+// ============================================================
 // list_tasks
 // 未完タスクを優先度・締切つきで返す (既定は open)
 // ============================================================

@@ -9,6 +9,7 @@ import {
   listRelated,
   updateMemo,
   completeTask,
+  deleteMemo,
   listTasks,
   exportAll,
 } from "@/lib/memos";
@@ -175,6 +176,23 @@ const handler = createMcpHandler(
         try {
           const memo = await completeTask(id);
           return memo ? ok(memo) : fail(`memo not found: ${id}`);
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- delete_memo --------
+    server.tool(
+      "delete_memo",
+      "メモを1件削除する。関連リンクも自動で削除される。取り消せないので注意。",
+      { id: z.string().describe("削除するメモ id") },
+      async ({ id }) => {
+        try {
+          const memo = await deleteMemo(id);
+          return memo
+            ? ok({ deleted: true, memo })
+            : fail(`memo not found: ${id}`);
         } catch (e) {
           return fail(e);
         }
