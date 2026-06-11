@@ -265,6 +265,62 @@ export async function deleteMemo(id: string): Promise<Memo | null> {
 }
 
 // ============================================================
+// UI 用: グラフデータ (ノード=メモ, エッジ=リンク)
+// ============================================================
+export interface GraphNode {
+  id: string;
+  title: string;
+  kind: Kind;
+  area: string | null;
+  degree: number;
+}
+export interface GraphEdge {
+  source: string;
+  target: string;
+  reason: string | null;
+}
+export async function getGraphData(): Promise<{ nodes: GraphNode[]; edges: GraphEdge[] }> {
+  const memos = (await sql`SELECT id, content, kind, area FROM memos`) as Array<
+    Pick<Memo, "id" | "content" | "kind" | "area">
+  >;
+  const links = (await sql`SELECT from_id, to_id, reason FROM links`) as Array<{
+    from_id: string;
+    to_id: string;
+    reason: string | null;
+  }>;
+  const degree = new Map<string, number>();
+  for (const l of links) {
+    degree.set(l.from_id, (degree.get(l.from_id) ?? 0) + 1);
+    degree.set(l.to_id, (degree.get(l.to_id) ?? 0) + 1);
+  }
+  const nodes: GraphNode[] = memos.map((m) => ({
+    id: m.id,
+    title: titleOf(m.content),
+    kind: m.kind,
+    area: m.area,
+    degree: degree.get(m.id) ?? 0,
+  }));
+  const edges: GraphEdge[] = links.map((l) => ({
+    source: l.from_id,
+    target: l.to_id,
+    reason: l.reason,
+  }));
+  return { nodes, edges };
+}
+
+// content の先頭から短いタイトルを作る
+export function titleOf(content: string): string {
+  const firstLine = content.split("\n").find((l) => l.trim()) ?? "";
+  return firstLine.replace(/\s+/g, " ").trim().slice(0, 40);
+}
+
+// 表示用に出典フッター ("---\n出典: ...") を取り除いた本文を返す
+export function bodyForDisplay(content: string): string {
+  const i = content.indexOf("\n---\n出典:");
+  return (i >= 0 ? content.slice(0, i) : content).trim();
+}
+
+// ============================================================
 // list_tasks
 // 未完タスクを優先度・締切つきで返す (既定は open)
 // ============================================================

@@ -1,66 +1,149 @@
-// 最小 UI: 稼働確認とメモ件数の表示のみ。操作は Claude チャット経由が主。
+import Link from "next/link";
 import { sql } from "@/lib/db";
+import { bodyForDisplay, type Memo } from "@/lib/memos";
+import { C, areaColor } from "./theme";
 
 export const dynamic = "force-dynamic";
 
-async function getStats() {
-  try {
-    const rows = (await sql`
-      SELECT
-        count(*)::int AS total,
-        count(*) FILTER (WHERE kind = 'task' AND status = 'open')::int AS open_tasks
-      FROM memos
-    `) as Array<{ total: number; open_tasks: number }>;
-    return { ok: true as const, ...rows[0] };
-  } catch (e) {
-    return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
-  }
+async function getData() {
+  const memos = (await sql`
+    SELECT m.*, COALESCE(l.cnt, 0)::int AS link_count
+    FROM memos m
+    LEFT JOIN (
+      SELECT id, count(*) AS cnt FROM (
+        SELECT from_id AS id FROM links
+        UNION ALL
+        SELECT to_id AS id FROM links
+      ) t GROUP BY id
+    ) l ON l.id = m.id
+    ORDER BY m.created_at DESC
+  `) as Array<Memo & { link_count: number }>;
+  return memos;
+}
+
+function fmtDate(s: string): string {
+  const d = new Date(s);
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 export default async function Home() {
-  const stats = await getStats();
-  return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: "48px 24px" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>🧠 Second Brain</h1>
-      <p style={{ opacity: 0.7, marginTop: 0 }}>
-        Personal MCP server. 操作は Claude アプリのチャットから行います。
-      </p>
+  const memos = await getData();
 
-      <section
+  return (
+    <main style={{ maxWidth: 720, margin: "0 auto", paddingBottom: 40 }}>
+      {/* ヘッダ */}
+      <div style={{ padding: "20px 20px 8px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+          }}
+        >
+          <h1 style={{ fontSize: 30, fontWeight: 700, color: C.text, margin: 0 }}>
+            メモ
+          </h1>
+          <Link
+            href="/graph"
+            style={{
+              color: C.accent,
+              textDecoration: "none",
+              fontSize: 16,
+              fontWeight: 500,
+            }}
+          >
+            グラフ表示
+          </Link>
+        </div>
+        <p style={{ color: C.secondary, fontSize: 13, margin: "6px 0 0" }}>
+          {memos.length} 件のメモ
+        </p>
+      </div>
+
+      {/* リスト (メールのインボックス風) */}
+      <div
         style={{
-          marginTop: 24,
-          padding: 20,
-          borderRadius: 12,
-          background: "#151922",
-          border: "1px solid #232a36",
+          background: C.card,
+          margin: "8px 16px",
+          borderRadius: 14,
+          overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
         }}
       >
-        {stats.ok ? (
-          <>
-            <p style={{ margin: "4px 0" }}>
-              DB 接続: <strong style={{ color: "#5ee6a8" }}>OK</strong>
-            </p>
-            <p style={{ margin: "4px 0" }}>メモ総数: {stats.total}</p>
-            <p style={{ margin: "4px 0" }}>未完タスク: {stats.open_tasks}</p>
-          </>
+        {memos.length === 0 ? (
+          <div style={{ padding: 24, color: C.secondary, fontSize: 14 }}>
+            メモはまだありません。
+          </div>
         ) : (
-          <>
-            <p style={{ margin: "4px 0", color: "#ff8a8a" }}>
-              DB 接続: NG
-            </p>
-            <p style={{ margin: "4px 0", opacity: 0.7, fontSize: 13 }}>
-              {stats.error}
-            </p>
-          </>
+          memos.map((m, i) => {
+            const body = bodyForDisplay(m.content);
+            return (
+              <Link
+                key={m.id}
+                href={`/memo/${m.id}`}
+                style={{
+                  display: "block",
+                  padding: "12px 16px",
+                  textDecoration: "none",
+                  color: "inherit",
+                  borderTop: i === 0 ? "none" : `1px solid ${C.separator}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: "50%",
+                      background: areaColor(m.area),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: 13, color: C.secondary, fontWeight: 600 }}>
+                    {m.area ?? "未分類"}
+                  </span>
+                  {m.kind !== "memo" ? (
+                    <span style={{ fontSize: 12, color: C.accent }}>{m.kind}</span>
+                  ) : null}
+                  {m.status === "open" ? (
+                    <span style={{ fontSize: 12, color: "#ff9500" }}>未完</span>
+                  ) : null}
+                  <span style={{ marginLeft: "auto", fontSize: 12, color: C.secondary }}>
+                    {fmtDate(m.created_at)}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    color: C.text,
+                    lineHeight: 1.45,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {body}
+                </div>
+                {m.link_count > 0 ? (
+                  <div style={{ fontSize: 12, color: C.secondary, marginTop: 4 }}>
+                    関連 {m.link_count} 件
+                  </div>
+                ) : null}
+              </Link>
+            );
+          })
         )}
-      </section>
-
-      <section style={{ marginTop: 24, fontSize: 14, opacity: 0.8 }}>
-        <p>
-          MCP エンドポイント: <code>/api/mcp</code>
-        </p>
-        <p>接続手順は README を参照してください。</p>
-      </section>
+      </div>
     </main>
   );
 }

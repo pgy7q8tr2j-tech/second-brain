@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { C, FONT } from "./theme";
 
 export const metadata: Metadata = {
   title: "Second Brain",
@@ -11,11 +12,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ja">
       <body
         style={{
-          fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, 'Hiragino Sans', sans-serif",
+          fontFamily: FONT,
           margin: 0,
-          background: "#0b0d12",
-          color: "#e6e9ef",
+          background: C.bg,
+          color: C.text,
+          WebkitFontSmoothing: "antialiased",
         }}
       >
         {children}
