@@ -12,23 +12,22 @@ export const C = {
 export const FONT =
   "-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', Roboto, sans-serif";
 
-// area ごとの色 (グラフ・バッジ用)
+// area ごとの色 (グラフ・バッジ用)。area は日本語。
 export const AREA_COLORS: Record<string, string> = {
-  creative: "#ff9500",
-  relationship: "#ff2d55",
-  health: "#34c759",
-  knowledge: "#5856d6",
-  dev: "#007aff",
-  investing: "#30b0c7",
-  practice: "#af52de",
-  practical: "#a2845e",
-  travel: "#00c7be",
-  profile: "#1c1c1e",
-  other: "#8e8e93",
+  創作: "#ff9500",
+  人間関係: "#ff2d55",
+  健康: "#34c759",
+  知識: "#5856d6",
+  開発: "#007aff",
+  投資: "#30b0c7",
+  習慣: "#af52de",
+  実務: "#a2845e",
+  旅行: "#00c7be",
+  プロフィール: "#1c1c1e",
+  その他: "#8e8e93",
 };
 export function areaColor(area: string | null): string {
   if (!area) return C.secondary;
   if (AREA_COLORS[area]) return AREA_COLORS[area];
-  // cc:project などは固定色
   return "#636366";
 }

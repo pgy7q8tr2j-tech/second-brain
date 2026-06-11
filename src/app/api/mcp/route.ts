@@ -45,9 +45,12 @@ const handler = createMcpHandler(
       {
         content: z.string().min(1).describe("メモ本文"),
         kind: kindEnum.optional().describe("memo|task|asset|decision (既定 memo)"),
-        area: z.string().optional().describe("分類 例: creative/practice/investing/other"),
-        priority: priorityEnum.optional().describe("P0|P1|P2 (task 用)"),
-        due_date: z.string().optional().describe("締切 YYYY-MM-DD (task 用)"),
+        area: z
+          .string()
+          .optional()
+          .describe("分類(日本語) 例: 創作/開発/投資/健康/人間関係/知識/実務/旅行/習慣/その他"),
+        priority: priorityEnum.optional().describe("P0|P1|P2 (task の優先度。締切は使わない方針)"),
+        due_date: z.string().optional().describe("締切 YYYY-MM-DD (基本は未使用)"),
       },
       async (args) => {
         try {

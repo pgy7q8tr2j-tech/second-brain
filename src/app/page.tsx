@@ -114,6 +114,25 @@ export default async function Home() {
                   {m.kind !== "memo" ? (
                     <span style={{ fontSize: 12, color: C.accent }}>{m.kind}</span>
                   ) : null}
+                  {m.priority ? (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#fff",
+                        background:
+                          m.priority === "P0"
+                            ? "#ff3b30"
+                            : m.priority === "P1"
+                              ? "#ff9500"
+                              : "#8e8e93",
+                        borderRadius: 5,
+                        padding: "1px 5px",
+                      }}
+                    >
+                      {m.priority}
+                    </span>
+                  ) : null}
                   {m.status === "open" ? (
                     <span style={{ fontSize: 12, color: "#ff9500" }}>未完</span>
                   ) : null}
