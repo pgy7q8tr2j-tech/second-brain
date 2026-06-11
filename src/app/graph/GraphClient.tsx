@@ -366,7 +366,7 @@ export default function GraphClient() {
           dragNode.fixed = false;
           dragNode = null;
           if (click) {
-            router.push(`/memo/${node.id}`);
+            router.push(`/memo/${node.id}?from=graph`);
             return;
           }
         }

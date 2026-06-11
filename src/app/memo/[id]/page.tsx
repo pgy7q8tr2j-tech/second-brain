@@ -14,10 +14,16 @@ function fmtDate(s: string): string {
 
 export default async function MemoDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const fromGraph = from === "graph";
+  const backHref = fromGraph ? "/graph" : "/";
+  const backLabel = fromGraph ? "← グラフ表示" : "← メモ一覧";
   const { memo, linked } = await listRelated(id);
   if (!memo) notFound();
 
@@ -32,10 +38,10 @@ export default async function MemoDetail({
     <main style={{ maxWidth: 720, margin: "0 auto", paddingBottom: 40 }}>
       <div style={{ padding: "16px 20px 4px" }}>
         <Link
-          href="/"
+          href={backHref}
           style={{ color: C.accent, textDecoration: "none", fontSize: 16 }}
         >
-          ← メモ一覧
+          {backLabel}
         </Link>
       </div>
 
@@ -96,7 +102,7 @@ export default async function MemoDetail({
           linked.map((r, i) => (
             <Link
               key={r.id}
-              href={`/memo/${r.id}`}
+              href={`/memo/${r.id}${fromGraph ? "?from=graph" : ""}`}
               style={{
                 display: "block",
                 padding: "12px 16px",
