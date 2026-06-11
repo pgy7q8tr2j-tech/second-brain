@@ -18,9 +18,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = process.env.MCP_SECRET_TOKEN;
+  const password = process.env.UI_PASSWORD || process.env.MCP_SECRET_TOKEN;
   const session = req.cookies.get("sb_session")?.value;
-  const authed = !!token && session === token;
+  const authed = !!password && session === password;
 
   if (authed) return NextResponse.next();
 

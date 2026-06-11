@@ -26,7 +26,7 @@ export default async function Login({
           Second Brain
         </h1>
         <p style={{ color: C.secondary, margin: "0 0 24px", fontSize: 14 }}>
-          閲覧用トークンを入力してください
+          パスワードを入力してください
         </p>
         <form
           action="/api/login"
@@ -40,8 +40,8 @@ export default async function Login({
         >
           <input
             type="password"
-            name="token"
-            placeholder="MCP_SECRET_TOKEN"
+            name="password"
+            placeholder="パスワード"
             autoFocus
             style={{
               width: "100%",
@@ -56,7 +56,7 @@ export default async function Login({
           />
           {e ? (
             <p style={{ color: "#ff3b30", fontSize: 13, margin: "10px 2px 0" }}>
-              トークンが違います
+              パスワードが違います
             </p>
           ) : null}
           <button
