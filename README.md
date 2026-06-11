@@ -21,6 +21,7 @@
 | `list_related(id)` | リンク済み（双方向）＋ 未リンクの関連候補 |
 | `update_memo(id, fields)` | 部分更新 |
 | `complete_task(id)` | タスクを完了に |
+| `delete_memo(id)` | メモを1件削除（関連リンクも自動削除） |
 | `list_tasks(status?, priority?)` | 未完タスクを優先度・締切順で（「今何すべき?」用） |
 | `export_all(format='json'\|'markdown')` | 全データ書き出し |
 
@@ -172,3 +173,39 @@ curl -s -X POST http://localhost:3000/api/mcp \
 - Neon 無料枠（ストレージ・コンピュート時間に上限あり、個人メモ用途なら十分）
 - Vercel Hobby 無料枠
 - サーバー側で AI API を呼ばないので **追加課金なし**。
+
+---
+
+## 日常運用：チャットの保存方法
+
+「今後のチャットを全端末で**自動**保存」は Claude アプリ側に仕組みが無いため不可。代わりに次の2通り。
+
+### 1. 手動保存（全端末で有効・推奨）
+どの端末でも、チャットの最後に **「これを第二の脳に保存して」** と言えば、Claude が要約 → `add_memo` → 関連リンクまで実行する。コネクタはアカウント単位なのでどの端末でも使える。
+
+### 2. Claude Code の自動保存（このMac限定／SessionEnd hook）
+Claude Code のセッション終了時に、会話の軽量ダイジェスト（秘密情報は自動マスク）を自動で `add_memo` する。要約のために別 Claude を呼ぶと再帰するため、ここでは清書せずダイジェストを保存し、後でチャットで「直近の cc メモを整理して」と頼めば清書・リンクできる。
+
+セットアップ:
+```bash
+mkdir -p ~/.claude/hooks
+cp hooks/second-brain-save.mjs ~/.claude/hooks/
+cp hooks/second-brain.env.example ~/.claude/hooks/second-brain.env   # 中の URL/TOKEN を自分のに
+chmod 600 ~/.claude/hooks/second-brain.env
+```
+`~/.claude/settings.json` に SessionEnd hook を登録:
+```json
+{
+  "hooks": {
+    "SessionEnd": [
+      { "hooks": [ { "type": "command",
+        "command": "/usr/local/bin/node /Users/<you>/.claude/hooks/second-brain-save.mjs" } ] }
+    ]
+  }
+}
+```
+
+## 過去ログの取り込み
+- **Claude アプリの過去履歴**: 設定 → データのエクスポートで zip を取得し、チャットで渡して「これを取り込んで」と頼む（要約＋関連リンク＋元日付保持）。
+- **Claude Code の過去履歴**: `~/.claude/projects/**/*.jsonl` をローカルで要約して取り込み可能。
+- 取り込んだメモには出典フッターとマーカー（例 `[import:chatlog-...]`）を付け、重複防止・一括削除に使う。
