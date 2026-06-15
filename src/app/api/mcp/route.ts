@@ -48,7 +48,7 @@ const handler = createMcpHandler(
         area: z
           .string()
           .optional()
-          .describe("分類(日本語) 例: 創作/開発/投資/健康/人間関係/知識/実務/旅行/習慣/その他"),
+          .describe("分類(日本語) 例: 創作/開発/投資/健康/人間関係/思考/知識/語学/エンタメ/実務/旅行/時事/習慣/その他"),
         priority: priorityEnum.optional().describe("P0|P1|P2 (task の優先度。締切は使わない方針)"),
         due_date: z.string().optional().describe("締切 YYYY-MM-DD (基本は未使用)"),
       },

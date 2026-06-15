@@ -23,6 +23,11 @@ export const AREA_COLORS: Record<string, string> = {
   習慣: "#af52de",
   実務: "#a2845e",
   旅行: "#00c7be",
+  時事: "#c0392b",
+  語学: "#d6249a",
+  エンタメ: "#eab308",
+  雑学: "#7cb342",
+  思考: "#7d5fff",
   プロフィール: "#1c1c1e",
   その他: "#8e8e93",
 };

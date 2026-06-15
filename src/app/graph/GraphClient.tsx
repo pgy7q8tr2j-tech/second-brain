@@ -49,6 +49,17 @@ export default function GraphClient() {
     let edges: { s: SimNode; t: SimNode; reason: string | null }[] = [];
     let alpha = 1;
     let hover: SimNode | null = null;
+    // 描画ループは「動きがある時だけ」回す(落ち着いたら停止=ジッター無し/省電力)
+    let running = false;
+    let lastInteract = 0;
+    const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+    const wake = () => {
+      lastInteract = now();
+      if (!running) {
+        running = true;
+        raf = requestAnimationFrame(loop);
+      }
+    };
 
     const W = () => canvas.clientWidth;
     const H = () => canvas.clientHeight;
@@ -84,13 +95,20 @@ export default function GraphClient() {
     };
 
     ctrlRef.current = {
-      zoom: (f) => applyAround(W() / 2, H() / 2, view.scale * f, view.rot),
-      rotate: (rad) => applyAround(W() / 2, H() / 2, view.scale, view.rot + rad),
+      zoom: (f) => {
+        applyAround(W() / 2, H() / 2, view.scale * f, view.rot);
+        wake();
+      },
+      rotate: (rad) => {
+        applyAround(W() / 2, H() / 2, view.scale, view.rot + rad);
+        wake();
+      },
       reset: () => {
         view.scale = 1;
         view.offX = 0;
         view.offY = 0;
         view.rot = 0;
+        wake();
       },
     };
 
@@ -130,7 +148,8 @@ export default function GraphClient() {
         .map((e) => ({ s: byId.get(e.source)!, t: byId.get(e.target)!, reason: e.reason }))
         .filter((e) => e.s && e.t);
       setStatus("ready");
-      loop();
+      alpha = 1;
+      wake();
     };
 
     const resize = () => {
@@ -139,6 +158,7 @@ export default function GraphClient() {
       canvas.height = Math.floor(canvas.clientHeight * dpr);
       const ctx = canvas.getContext("2d");
       if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      wake();
     };
 
     const radiusOf = (n: SimNode) => 4 + Math.min(10, Math.sqrt(n.degree) * 2.6);
@@ -195,7 +215,7 @@ export default function GraphClient() {
         n.x += n.vx;
         n.y += n.vy;
       }
-      if (alpha > 0.03) alpha *= 0.994;
+      if (alpha > 0.02) alpha *= 0.97;
     };
 
     const draw = () => {
@@ -242,8 +262,19 @@ export default function GraphClient() {
     };
 
     const loop = () => {
-      step();
+      const hot = alpha > 0.02;
+      if (hot) step();
       draw();
+      const interacting = pointers.size > 0 || !!dragNode || panning || rotating;
+      // 落ち着いて操作も無ければ停止してフリーズ(ジッター防止)
+      if (!hot && !interacting && now() - lastInteract > 500) {
+        running = false;
+        for (const n of nodes) {
+          n.vx = 0;
+          n.vy = 0;
+        }
+        return;
+      }
       raf = requestAnimationFrame(loop);
     };
 
@@ -276,6 +307,19 @@ export default function GraphClient() {
       gPrevAng = 0,
       gPrevMidX = 0,
       gPrevMidY = 0;
+    // 長押し回転 (掴んで中心軸で回す)
+    let lpTimer: ReturnType<typeof setTimeout> | null = null;
+    let rotating = false;
+    let grabAngle = 0,
+      baseRot = 0,
+      rotCX = 0,
+      rotCY = 0;
+    const clearLP = () => {
+      if (lpTimer) {
+        clearTimeout(lpTimer);
+        lpTimer = null;
+      }
+    };
 
     const xy = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -283,6 +327,7 @@ export default function GraphClient() {
     };
 
     const onDown = (e: PointerEvent) => {
+      wake();
       const p = xy(e);
       pointers.set(e.pointerId, p);
       canvas.setPointerCapture(e.pointerId);
@@ -296,11 +341,31 @@ export default function GraphClient() {
         if (n) {
           dragNode = n;
           n.fixed = true;
+          canvas.style.cursor = "grabbing";
         } else {
           panning = true;
+          canvas.style.cursor = "grabbing";
         }
+        // 長押し(350ms)で回転モードに入る
+        clearLP();
+        lpTimer = setTimeout(() => {
+          rotating = true;
+          if (dragNode) {
+            dragNode.fixed = false;
+            dragNode = null;
+          }
+          panning = false;
+          rotCX = W() / 2 + view.offX; // グラフ中心(ワールド原点)の画面位置
+          rotCY = H() / 2 + view.offY;
+          grabAngle = Math.atan2(lastY - rotCY, lastX - rotCX);
+          baseRot = view.rot;
+          canvas.style.cursor = "crosshair";
+          wake();
+        }, 350);
       } else if (pointers.size === 2) {
         // start gesture; cancel single-pointer modes
+        clearLP();
+        rotating = false;
         if (dragNode) dragNode.fixed = false;
         dragNode = null;
         panning = false;
@@ -315,14 +380,21 @@ export default function GraphClient() {
       if (!pointers.has(e.pointerId)) {
         // hover only
         const p = xy(e);
-        hover = pick(p.x, p.y);
-        canvas.style.cursor = hover ? "pointer" : "default";
+        const h = pick(p.x, p.y);
+        if (h !== hover) {
+          hover = h;
+          canvas.style.cursor = hover ? "pointer" : "grab";
+          wake();
+        }
         return;
       }
+      wake();
       const p = xy(e);
       pointers.set(e.pointerId, p);
 
       if (pointers.size >= 2) {
+        clearLP();
+        rotating = false;
         const [a, b] = [...pointers.values()];
         const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
         const ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -341,13 +413,23 @@ export default function GraphClient() {
       }
 
       moved += Math.abs(p.x - lastX) + Math.abs(p.y - lastY);
+      // 長押し前に動かしたら回転は発動させず通常操作にする
+      if (!rotating && moved > 8) clearLP();
+
+      if (rotating) {
+        const cur = Math.atan2(p.y - rotCY, p.x - rotCX);
+        applyAround(rotCX, rotCY, view.scale, baseRot + (cur - grabAngle));
+        lastX = p.x;
+        lastY = p.y;
+        return;
+      }
       if (dragNode) {
         const w = screenToWorld(p.x, p.y);
         dragNode.x = w.x;
         dragNode.y = w.y;
         dragNode.vx = 0;
         dragNode.vy = 0;
-        alpha = Math.max(alpha, 0.5);
+        alpha = Math.max(alpha, 0.2);
       } else if (panning) {
         view.offX += p.x - lastX;
         view.offY += p.y - lastY;
@@ -356,6 +438,8 @@ export default function GraphClient() {
       lastY = p.y;
     };
     const onUp = (e: PointerEvent) => {
+      clearLP();
+      rotating = false;
       const p = xy(e);
       const wasOne = pointers.size === 1;
       pointers.delete(e.pointerId);
@@ -382,6 +466,8 @@ export default function GraphClient() {
         moved = 999; // prevent accidental click after gesture
         panning = true;
       }
+      if (pointers.size === 0) canvas.style.cursor = hover ? "pointer" : "grab";
+      wake();
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -389,7 +475,10 @@ export default function GraphClient() {
       const px = e.clientX - r.left;
       const py = e.clientY - r.top;
       applyAround(px, py, view.scale * Math.exp(-e.deltaY * 0.0015), view.rot);
+      wake();
     };
+
+    const onCtx = (e: Event) => e.preventDefault(); // 長押しのコンテキストメニュー抑制
 
     resize();
     window.addEventListener("resize", resize);
@@ -398,17 +487,20 @@ export default function GraphClient() {
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("contextmenu", onCtx);
     run();
 
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
+      clearLP();
       window.removeEventListener("resize", resize);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
       canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("contextmenu", onCtx);
       ctrlRef.current = null;
     };
   }, [router]);
@@ -431,7 +523,16 @@ export default function GraphClient() {
     <>
       <canvas
         ref={canvasRef}
-        style={{ width: "100%", height: "100%", display: "block", touchAction: "none" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+          cursor: "grab",
+        }}
       />
       {/* 操作ボタン */}
       <div
@@ -505,7 +606,7 @@ export default function GraphClient() {
           pointerEvents: "none",
         }}
       >
-        タップで該当メモへ ・ ドラッグで移動 ・ ホイール/ピンチで拡大縮小 ・ 2本指ひねり/ボタンで回転
+        タップで該当メモへ ・ ドラッグで移動 ・ ホイール/ピンチで拡大縮小 ・ 長押しして掴んだまま動かすと中心軸で回転
       </div>
     </>
   );
