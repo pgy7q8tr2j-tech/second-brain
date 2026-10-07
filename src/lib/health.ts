@@ -143,9 +143,14 @@ export function validateAndFlatten(input: unknown): {
       throw new ValidationError("days の要素がオブジェクトではありません");
     }
     const day = d as Record<string, unknown>;
-    const date = day.date;
-    if (typeof date !== "string" || !DATE_RE.test(date)) {
-      throw new ValidationError(`date が YYYY-MM-DD ではありません: ${String(date)}`);
+    // ショートカットは変数挿入時に前後へ空白を付けることがあるため trim する。
+    const dateRaw = day.date;
+    if (typeof dateRaw !== "string") {
+      throw new ValidationError(`date が文字列ではありません: ${String(dateRaw)}`);
+    }
+    const date = dateRaw.trim();
+    if (!DATE_RE.test(date)) {
+      throw new ValidationError(`date が YYYY-MM-DD ではありません: ${date}`);
     }
     // 実在日付か (例: 2026-13-40 を弾く)
     const [y, m, dd] = date.split("-").map(Number);
