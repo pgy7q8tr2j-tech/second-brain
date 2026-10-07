@@ -13,6 +13,7 @@ import {
   listTasks,
   exportAll,
 } from "@/lib/memos";
+import { getHealthDay, getHealthRange } from "@/lib/health";
 
 // Neon + ストリーミングのため Node.js ランタイムで動かす
 export const runtime = "nodejs";
@@ -213,6 +214,39 @@ const handler = createMcpHandler(
       async (args) => {
         try {
           return ok(await listTasks(args));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- get_health_day --------
+    server.tool(
+      "get_health_day",
+      "指定日の健康の数値 (iPhoneヘルスケアの日次合計) を返す。各項目に value / unit / tz と、その値の『最終受信時刻 (sent_at)』が付く。日全体の最新時刻 last_sent_at も返す。数値はこの last_sent_at 時点のもので、それ以降の活動は含まれない (iPhoneがロック中は送信されないため)。値は加工せずそのまま返すので、消費と摂取の差し引きは呼び出し側で計算すること。データが無い日は has_data=false。metric: active_energy(kcal)/basal_energy(kcal)/steps(count)/walking_distance(km)/body_mass(kg)。",
+      {
+        date: z.string().describe("対象日 YYYY-MM-DD (送信元タイムゾーンで区切った日付)"),
+      },
+      async ({ date }) => {
+        try {
+          return ok(await getHealthDay(date));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- get_health_range --------
+    server.tool(
+      "get_health_range",
+      "期間内 (最大90日) の健康の数値を日ごとに返す。体重や消費カロリーの推移を見る用。各日に last_sent_at が付く。数値は各日の last_sent_at 時点のもので、それ以降の活動は含まれない。値は加工せずそのまま返す (計算は呼び出し側)。データのある日だけ返る。",
+      {
+        from: z.string().describe("開始日 YYYY-MM-DD (両端含む)"),
+        to: z.string().describe("終了日 YYYY-MM-DD (両端含む)"),
+      },
+      async ({ from, to }) => {
+        try {
+          return ok(await getHealthRange(from, to));
         } catch (e) {
           return fail(e);
         }
