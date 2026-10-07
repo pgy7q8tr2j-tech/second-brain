@@ -10,11 +10,14 @@ export function middleware(req: NextRequest) {
 
   if (
     pathname.startsWith("/api/mcp") ||
+    pathname.startsWith("/api/health/ingest") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {
+    // /api/health/ingest は独自の Bearer トークン (HEALTH_INGEST_TOKEN) で
+    // 認証するため、UI 用セッション cookie のチェックから除外する。
     return NextResponse.next();
   }
 
