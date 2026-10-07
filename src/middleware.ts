@@ -11,6 +11,7 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/api/mcp") ||
     pathname.startsWith("/api/health/ingest") ||
+    pathname.startsWith("/.well-known/") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
@@ -18,6 +19,10 @@ export function middleware(req: NextRequest) {
   ) {
     // /api/health/ingest は独自の Bearer トークン (HEALTH_INGEST_TOKEN) で
     // 認証するため、UI 用セッション cookie のチェックから除外する。
+    //
+    // /.well-known/ は OAuth 探索パス。ここを /login に 307 リダイレクトすると
+    // Claude のコネクタが「OAuth サーバーあり」と誤認して登録を試み失敗する。
+    // 除外して素の 404 を返し、「OAuth なし → URL の ?token= で接続」に倒す。
     return NextResponse.next();
   }
 
