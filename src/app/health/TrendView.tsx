@@ -22,11 +22,34 @@ function round(n: number): number {
 
 type Period = "day" | "week" | "month";
 
+export interface DayWithEstimate extends DaySummary {
+  // 消費目安: 実測が欠けている/信頼できない日のための参考値。
+  // 直前の実測日(最大7日ぶん)の消費の平均。実測が無ければnull。
+  // 「欠損を推定で埋めない(埋めるなら別系列にして明記)」の方針に沿い、
+  // 実測の消費とは別の線として描く。
+  consumptionEstimate: number | null;
+}
+
+const ESTIMATE_WINDOW = 7;
+
+function withEstimate(range: DaySummary[]): DayWithEstimate[] {
+  return range.map((d, i) => {
+    const prior: number[] = [];
+    for (let j = i - 1; j >= 0 && prior.length < ESTIMATE_WINDOW; j--) {
+      const v = range[j].consumption.total;
+      if (v != null) prior.push(v);
+    }
+    const consumptionEstimate = prior.length ? prior.reduce((a, b) => a + b, 0) / prior.length : null;
+    return { ...d, consumptionEstimate };
+  });
+}
+
 export default function TrendView({ range }: { range: DaySummary[] }) {
   const [period, setPeriod] = useState<Period>("day");
   const [windowDays, setWindowDays] = useState(30);
 
-  const dayWindow = useMemo(() => range.slice(-windowDays), [range, windowDays]);
+  const rangeWithEstimate = useMemo(() => withEstimate(range), [range]);
+  const dayWindow = useMemo(() => rangeWithEstimate.slice(-windowDays), [rangeWithEstimate, windowDays]);
 
   const counts = useMemo(() => {
     const c: Record<Verdict, number> = {
@@ -96,7 +119,7 @@ function CountChip({ color, label, n }: { color: string; label: string; n: numbe
 }
 
 // ---- 日: 折れ線グラフ (消費・摂取・目標摂取 + 差分の塗り + 体重の副軸) ----
-function DayLineChart({ days }: { days: DaySummary[] }) {
+function DayLineChart({ days }: { days: DayWithEstimate[] }) {
   const W = Math.max(320, days.length * 26);
   const H = 220;
   const PAD_L = 44;
@@ -112,6 +135,7 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
     if (d.consumption.total != null) kcalValues.push(d.consumption.total);
     if (d.target.intake != null) kcalValues.push(d.target.intake);
     if (d.intake.totalMax != null) kcalValues.push(d.intake.totalMax);
+    if (d.consumptionEstimate != null) kcalValues.push(d.consumptionEstimate);
     if (d.weightKg != null) weightValues.push(d.weightKg);
   }
   const kcalMax = kcalValues.length ? Math.max(...kcalValues) * 1.1 : 2500;
@@ -124,7 +148,7 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
   const yKcal = (v: number) => PAD_T + plotH - ((v - kcalMin) / (kcalMax - kcalMin || 1)) * plotH;
   const yW = (v: number) => PAD_T + plotH - ((v - wMin) / (wMax - wMin || 1)) * plotH;
 
-  const linePath = (getValue: (d: DaySummary) => number | null, yFn: (v: number) => number) => {
+  const linePath = (getValue: (d: DayWithEstimate) => number | null, yFn: (v: number) => number) => {
     let path = "";
     let open = false;
     days.forEach((d, i) => {
@@ -198,7 +222,16 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
           strokeWidth={1.5}
           strokeDasharray="4 3"
         />
-        {/* 消費 */}
+        {/* 消費目安(推定、直近最大7日の実測平均。実測の消費とは別系列) */}
+        <path
+          d={linePath((d) => d.consumptionEstimate, yKcal)}
+          fill="none"
+          stroke="var(--hb-peacock)"
+          strokeWidth={1.5}
+          strokeDasharray="2 3"
+          opacity={0.55}
+        />
+        {/* 消費(実測) */}
         <path d={linePath((d) => d.consumption.total, yKcal)} fill="none" stroke="var(--hb-peacock)" strokeWidth={2} />
         {/* 摂取 */}
         <path d={linePath((d) => d.intake.totalMax, yKcal)} fill="none" stroke="var(--hb-tangerine)" strokeWidth={2} />
@@ -236,10 +269,14 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
       </svg>
       <div className="hb-legend-row" style={{ marginTop: 2 }}>
         <span><span className="dot" style={{ background: "var(--hb-peacock)" }} />消費</span>
+        <span><span className="dot" style={{ background: "var(--hb-peacock)", opacity: 0.55 }} />消費目安(推定)</span>
         <span><span className="dot" style={{ background: "var(--hb-tangerine)" }} />摂取</span>
         <span><span className="dot" style={{ background: "var(--hb-secondary)" }} />目標摂取</span>
         {hasWeight && <span><span className="dot" style={{ background: "var(--hb-weight)" }} />体重(kg)</span>}
       </div>
+      <p className="hb-note" style={{ marginTop: 10 }}>
+        消費目安は、直近(最大7日)の実測ずみの消費の平均です。推定値であり実測ではありません。
+      </p>
     </div>
   );
 }
