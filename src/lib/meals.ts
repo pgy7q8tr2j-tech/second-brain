@@ -37,6 +37,17 @@ export interface MealItemInput {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Neon の driver は NUMERIC 列 (kcal_min/kcal_max) を文字列で返す (精度を失わないため)。
+// number | null のまま放置すると "390" + "140" のような文字列連結が起きるため、
+// 行を返す箇所では必ずこれを通して number に正規化する。
+function normalizeRow(row: MealItem): MealItem {
+  return {
+    ...row,
+    kcal_min: row.kcal_min == null ? null : Number(row.kcal_min),
+    kcal_max: row.kcal_max == null ? null : Number(row.kcal_max),
+  };
+}
+
 function validate(input: MealItemInput): void {
   if (!DATE_RE.test(input.record_date)) {
     throw new Error(`record_date が YYYY-MM-DD ではありません: ${input.record_date}`);
@@ -69,7 +80,7 @@ export async function addMealItems(items: MealItemInput[]): Promise<MealItem[]> 
       )
       RETURNING *
     `) as MealItem[];
-    results.push(rows[0]);
+    results.push(normalizeRow(rows[0]));
   }
   return results;
 }
@@ -84,12 +95,14 @@ export async function listMealItems(from: string, to: string): Promise<MealItem[
     WHEN '朝' THEN 0 WHEN '昼' THEN 1 WHEN '夜' THEN 2
     WHEN '間食' THEN 3 WHEN '深夜' THEN 4 ELSE 5 END`;
   const rows = (await sql(
-    `SELECT * FROM meal_items
+    `SELECT id, to_char(record_date, 'YYYY-MM-DD') AS record_date, meal_slot, item_name,
+            kcal_min, kcal_max, basis, note, source_memo_id, created_at
+     FROM meal_items
      WHERE record_date BETWEEN $1 AND $2
      ORDER BY record_date ASC, ${slotOrder} ASC, created_at ASC`,
     [from, to],
   )) as MealItem[];
-  return rows;
+  return rows.map(normalizeRow);
 }
 
 // ---- update_meal_item -----------------------------------------
@@ -113,13 +126,13 @@ export async function updateMealItem(
   );
   if (entries.length === 0) {
     const rows = (await sql`SELECT * FROM meal_items WHERE id = ${id}::uuid`) as MealItem[];
-    return rows[0] ?? null;
+    return rows[0] ? normalizeRow(rows[0]) : null;
   }
   const setParts = entries.map(([k], i) => `${k} = $${i + 2}`);
   const params = [id, ...entries.map(([, v]) => v)];
   const text = `UPDATE meal_items SET ${setParts.join(", ")} WHERE id = $1::uuid RETURNING *`;
   const rows = (await sql(text, params)) as MealItem[];
-  return rows[0] ?? null;
+  return rows[0] ? normalizeRow(rows[0]) : null;
 }
 
 // ---- delete_meal_item -----------------------------------------
@@ -127,7 +140,7 @@ export async function deleteMealItem(id: string): Promise<MealItem | null> {
   const rows = (await sql`
     DELETE FROM meal_items WHERE id = ${id}::uuid RETURNING *
   `) as MealItem[];
-  return rows[0] ?? null;
+  return rows[0] ? normalizeRow(rows[0]) : null;
 }
 
 // ============================================================
