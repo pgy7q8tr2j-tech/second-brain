@@ -1,0 +1,221 @@
+/* ============================================================
+   健康ダッシュボード専用スタイル。
+   既存画面(メモ一覧・グラフ表示)は固定ライトテーマ(inline style)のまま変更せず、
+   このページだけ CSS変数 + prefers-color-scheme でダークモードに対応する。
+
+   配色の出典:
+   Google Calendar の予定の色 (named colors) の HEX値は、一次情報である
+   Calendar API `colors.get` (event) のレスポンスを3つの独立した実装
+   (OSSプロジェクトのソースコード: GitHub plainva/plainva, bkalendar/bkalendar.github.io,
+   noctalia-dev/noctalia ※noctalenoctalia側は "Reference: developers.google.com/.../colors/get"
+   を明記) で相互確認し、全て同一の値であることを確認済み。
+   1 Lavender #7986cb / 2 Sage #33b679 / 3 Grape #8e24aa / 4 Flamingo #e67c73 /
+   5 Banana #f6bf26 / 6 Tangerine #f4511e / 7 Peacock #039be5 / 8 Graphite #616161 /
+   9 Blueberry #3f51b5 / 10 Basil #0b8043 / 11 Tomato #d50000
+   ============================================================ */
+
+.health-root {
+  --hb-bg: #f2f2f7;
+  --hb-card: #ffffff;
+  --hb-separator: #e5e5ea;
+  --hb-text: #1c1c1e;
+  --hb-secondary: #8e8e93;
+  --hb-accent: #007aff;
+
+  /* Google Calendar 由来の判定色 */
+  --hb-sage: #33b679;
+  --hb-banana: #f6bf26;
+  --hb-tomato: #d50000;
+  --hb-graphite: #616161;
+  --hb-peacock: #039be5;
+  --hb-tangerine: #f4511e;
+
+  --hb-sage-soft: rgba(51, 182, 121, 0.14);
+  --hb-banana-soft: rgba(246, 191, 38, 0.16);
+  --hb-tomato-soft: rgba(213, 0, 0, 0.12);
+  --hb-graphite-soft: rgba(97, 97, 97, 0.12);
+
+  background: var(--hb-bg);
+  color: var(--hb-text);
+  min-height: 100vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  .health-root:not([data-theme="light"]) {
+    --hb-bg: #000000;
+    --hb-card: #1c1c1e;
+    --hb-separator: #38383a;
+    --hb-text: #f2f2f7;
+    --hb-secondary: #98989d;
+    --hb-accent: #0a84ff;
+
+    --hb-sage-soft: rgba(51, 182, 121, 0.22);
+    --hb-banana-soft: rgba(246, 191, 38, 0.24);
+    --hb-tomato-soft: rgba(213, 0, 0, 0.22);
+    --hb-graphite-soft: rgba(142, 142, 147, 0.2);
+  }
+}
+.health-root[data-theme="dark"] {
+  --hb-bg: #000000;
+  --hb-card: #1c1c1e;
+  --hb-separator: #38383a;
+  --hb-text: #f2f2f7;
+  --hb-secondary: #98989d;
+  --hb-accent: #0a84ff;
+
+  --hb-sage-soft: rgba(51, 182, 121, 0.22);
+  --hb-banana-soft: rgba(246, 191, 38, 0.24);
+  --hb-tomato-soft: rgba(213, 0, 0, 0.22);
+  --hb-graphite-soft: rgba(142, 142, 147, 0.2);
+}
+
+.health-root * {
+  box-sizing: border-box;
+}
+
+.hb-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--hb-card);
+  border-bottom: 1px solid var(--hb-separator);
+}
+.hb-header a {
+  color: var(--hb-accent);
+  text-decoration: none;
+  font-size: 16px;
+}
+.hb-header .hb-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hb-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+}
+.hb-tab {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hb-separator);
+  background: var(--hb-card);
+  color: var(--hb-secondary);
+  cursor: pointer;
+}
+.hb-tab[data-active="true"] {
+  background: var(--hb-accent);
+  border-color: var(--hb-accent);
+  color: #fff;
+}
+
+.hb-main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 4px 16px 48px;
+}
+
+.hb-card {
+  background: var(--hb-card);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 10px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.hb-ring-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin: 8px auto 4px;
+}
+.hb-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 20px;
+}
+.hb-ring-number {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.hb-ring-sub {
+  font-size: 12.5px;
+  color: var(--hb-secondary);
+  margin-top: 4px;
+}
+.hb-ring-badge {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.hb-legend-row {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--hb-secondary);
+}
+.hb-legend-row .dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.hb-stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+.hb-stat {
+  background: var(--hb-bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.hb-stat .k {
+  font-size: 11.5px;
+  color: var(--hb-secondary);
+}
+.hb-stat .v {
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hb-note {
+  font-size: 12.5px;
+  color: var(--hb-secondary);
+  margin-top: 12px;
+  line-height: 1.6;
+}
+.hb-note b {
+  color: var(--hb-text);
+}
+
+.hb-placeholder {
+  text-align: center;
+  color: var(--hb-secondary);
+  font-size: 14px;
+  padding: 60px 20px;
+}

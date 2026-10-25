@@ -261,8 +261,8 @@ export async function getHealthDay(date: string): Promise<HealthDay> {
   }
   const rows = (await sql`
     SELECT metric, value, unit, tz,
-           to_char(sent_at,     'YYYY-MM-DD"T"HH24:MI:SSOF') AS sent_at,
-           to_char(received_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS received_at
+           to_char(sent_at     AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS sent_at,
+           to_char(received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS received_at
     FROM health_daily
     WHERE date = ${date}
     ORDER BY metric
@@ -317,8 +317,8 @@ export async function getHealthRange(
   const rows = (await sql`
     SELECT to_char(date, 'YYYY-MM-DD') AS date,
            metric, value, unit, tz,
-           to_char(sent_at,     'YYYY-MM-DD"T"HH24:MI:SSOF') AS sent_at,
-           to_char(received_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS received_at
+           to_char(sent_at     AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS sent_at,
+           to_char(received_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS received_at
     FROM health_daily
     WHERE date BETWEEN ${from} AND ${to}
     ORDER BY date, metric

@@ -45,17 +45,30 @@ export default async function Home() {
           <h1 style={{ fontSize: 30, fontWeight: 700, color: C.text, margin: 0 }}>
             メモ
           </h1>
-          <Link
-            href="/graph"
-            style={{
-              color: C.accent,
-              textDecoration: "none",
-              fontSize: 16,
-              fontWeight: 500,
-            }}
-          >
-            グラフ表示
-          </Link>
+          <div style={{ display: "flex", gap: 14 }}>
+            <Link
+              href="/graph"
+              style={{
+                color: C.accent,
+                textDecoration: "none",
+                fontSize: 16,
+                fontWeight: 500,
+              }}
+            >
+              つながり
+            </Link>
+            <Link
+              href="/health"
+              style={{
+                color: C.accent,
+                textDecoration: "none",
+                fontSize: 16,
+                fontWeight: 500,
+              }}
+            >
+              健康
+            </Link>
+          </div>
         </div>
         <p style={{ color: C.secondary, fontSize: 13, margin: "6px 0 0" }}>
           {memos.length} 件のメモ
