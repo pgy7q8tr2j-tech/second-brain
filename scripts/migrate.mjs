@@ -2,7 +2,7 @@
 //   ローカル:  npm run migrate   (.env.local / .env を自動で読む)
 // 複数ステートメント & plpgsql 関数を含む DDL を流すため
 // WebSocket ベースの Pool を使う。
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { Pool, neonConfig } from "@neondatabase/serverless";
@@ -32,13 +32,19 @@ if (!url) {
 }
 
 const pool = new Pool({ connectionString: url });
-const file = join(__dirname, "..", "drizzle", "0001_init.sql");
-const ddl = readFileSync(file, "utf8");
+const dir = join(__dirname, "..", "drizzle");
+// 全ファイルを番号順に適用する (各ファイルは IF NOT EXISTS で冪等に書く)
+const files = readdirSync(dir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 
-console.log("Running migration: drizzle/0001_init.sql ...");
 try {
-  // パラメータなしの query は simple-query プロトコルになり複数文を実行できる
-  await pool.query(ddl);
+  for (const f of files) {
+    console.log(`Running migration: drizzle/${f} ...`);
+    const ddl = readFileSync(join(dir, f), "utf8");
+    // パラメータなしの query は simple-query プロトコルになり複数文を実行できる
+    await pool.query(ddl);
+  }
   console.log("✅ Migration complete.");
 } catch (err) {
   console.error("❌ Migration failed:", err.message);

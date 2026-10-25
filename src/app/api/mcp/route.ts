@@ -14,6 +14,16 @@ import {
   exportAll,
 } from "@/lib/memos";
 import { getHealthDay, getHealthRange } from "@/lib/health";
+import {
+  addMealItems,
+  listMealItems,
+  updateMealItem,
+  deleteMealItem,
+  getSetting,
+  setSetting,
+  MEAL_SLOTS,
+  BASES,
+} from "@/lib/meals";
 
 // Neon + ストリーミングのため Node.js ランタイムで動かす
 export const runtime = "nodejs";
@@ -247,6 +257,120 @@ const handler = createMcpHandler(
       async ({ from, to }) => {
         try {
           return ok(await getHealthRange(from, to));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- add_meal_items --------
+    server.tool(
+      "add_meal_items",
+      "食事の品を1件以上まとめて登録する(健康ダッシュボード集計用の構造化データ)。既存の自由文メモ(健康エリアの食事記録)とは独立。source_memo_idで元メモを紐づけられる。kcalが不明な品はkcal_min/kcal_maxを省略する(推測で埋めない)。",
+      {
+        items: z
+          .array(
+            z.object({
+              record_date: z.string().describe("記録日 YYYY-MM-DD(メモ本文タイトルの日付)"),
+              meal_slot: z.enum(MEAL_SLOTS as [string, ...string[]]).describe("朝|昼|夜|間食|深夜"),
+              item_name: z.string().min(1).describe("品名"),
+              kcal_min: z.number().nullable().optional().describe("kcal下限(補助表示)"),
+              kcal_max: z.number().nullable().optional().describe("kcal上限(集計の軸)"),
+              basis: z.enum(BASES as [string, ...string[]]).nullable().optional().describe("任意。ラベル記載|推測|未計上|要確認"),
+              note: z.string().nullable().optional().describe("出典・補足"),
+              source_memo_id: z.string().nullable().optional().describe("元メモのid"),
+            }),
+          )
+          .min(1),
+      },
+      async ({ items }) => {
+        try {
+          return ok(await addMealItems(items as never));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- list_meal_items --------
+    server.tool(
+      "list_meal_items",
+      "期間内(両端含む)の食事の品を記録日・食事区分順で返す。",
+      {
+        from: z.string().describe("開始日 YYYY-MM-DD"),
+        to: z.string().describe("終了日 YYYY-MM-DD"),
+      },
+      async ({ from, to }) => {
+        try {
+          return ok(await listMealItems(from, to));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- update_meal_item --------
+    server.tool(
+      "update_meal_item",
+      "食事の品を部分更新する。",
+      {
+        id: z.string(),
+        record_date: z.string().optional(),
+        meal_slot: z.enum(MEAL_SLOTS as [string, ...string[]]).optional(),
+        item_name: z.string().optional(),
+        kcal_min: z.number().nullable().optional(),
+        kcal_max: z.number().nullable().optional(),
+        basis: z.enum(BASES as [string, ...string[]]).nullable().optional(),
+        note: z.string().nullable().optional(),
+        source_memo_id: z.string().nullable().optional(),
+      },
+      async ({ id, ...fields }) => {
+        try {
+          const item = await updateMealItem(id, fields as never);
+          return item ? ok(item) : fail(`meal item not found: ${id}`);
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- delete_meal_item --------
+    server.tool(
+      "delete_meal_item",
+      "食事の品を1件削除する。",
+      { id: z.string() },
+      async ({ id }) => {
+        try {
+          const item = await deleteMealItem(id);
+          return item ? ok({ deleted: true, item }) : fail(`meal item not found: ${id}`);
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- get_setting / set_setting --------
+    server.tool(
+      "get_setting",
+      "設定値を取得する(例: calorie_deficit_target)。",
+      { key: z.string() },
+      async ({ key }) => {
+        try {
+          const value = await getSetting(key);
+          return ok({ key, value });
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+    server.tool(
+      "set_setting",
+      "設定値を変更する(例: calorie_deficit_target='400')。",
+      { key: z.string(), value: z.string() },
+      async ({ key, value }) => {
+        try {
+          await setSetting(key, value);
+          return ok({ key, value });
         } catch (e) {
           return fail(e);
         }
