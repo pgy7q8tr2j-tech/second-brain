@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import type { DaySummary, Verdict } from "@/lib/healthSummary";
+import type { MealItem } from "@/lib/meals";
 import TrendView from "./TrendView";
+import MealsView from "./MealsView";
 import "./health.css";
 
 const VERDICT_COLOR: Record<Verdict, string> = {
@@ -108,7 +110,15 @@ function centerText(summary: DaySummary): { big: string; sub: string } {
   return { big: `${fmt(Math.abs(diff))}`, sub: "kcal オーバー" };
 }
 
-export default function HealthClient({ today, range }: { today: DaySummary; range: DaySummary[] }) {
+export default function HealthClient({
+  today,
+  range,
+  mealItems,
+}: {
+  today: DaySummary;
+  range: DaySummary[];
+  mealItems: MealItem[];
+}) {
   const [tab, setTab] = useState<"today" | "trend" | "meals">("today");
   const color = VERDICT_COLOR[today.verdict];
   const soft = VERDICT_SOFT[today.verdict];
@@ -194,7 +204,7 @@ export default function HealthClient({ today, range }: { today: DaySummary; rang
         )}
 
         {tab === "trend" && <TrendView range={range} />}
-        {tab === "meals" && <div className="hb-placeholder">食事一覧は準備中です（次のステップで追加します）</div>}
+        {tab === "meals" && <MealsView mealItems={mealItems} />}
       </div>
     </div>
   );
