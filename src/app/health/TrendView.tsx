@@ -133,7 +133,6 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
   const weightValues: number[] = [];
   for (const d of days) {
     if (d.consumption.total != null) kcalValues.push(d.consumption.total);
-    if (d.target.intake != null) kcalValues.push(d.target.intake);
     if (d.intake.totalMax != null) kcalValues.push(d.intake.totalMax);
     if (d.consumptionEstimate != null) kcalValues.push(d.consumptionEstimate);
     if (d.weightKg != null) weightValues.push(d.weightKg);
@@ -192,7 +191,8 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
   };
 
   const areaPath = () => {
-    // 摂取〜目標摂取 の間を塗る(差分の可視化)。両方そろっている区間だけ。
+    // 摂取〜消費 の間を塗る(差分の可視化)。両方そろっている区間だけ。
+    // 消費は実測優先・無ければ消費目安(推定)を使う(1本の線と同じ値)。
     const segs: string[] = [];
     let seg: { i: number; a: number; b: number }[] = [];
     const flush = () => {
@@ -210,8 +210,9 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
       seg = [];
     };
     days.forEach((d, i) => {
-      if (d.intake.totalMax != null && d.target.intake != null) {
-        seg.push({ i, a: d.intake.totalMax, b: d.target.intake });
+      const cons = d.consumption.total ?? d.consumptionEstimate;
+      if (d.intake.totalMax != null && cons != null) {
+        seg.push({ i, a: d.intake.totalMax, b: cons });
       } else {
         flush();
       }
@@ -224,7 +225,7 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
 
   return (
     <div className="hb-chart-scroll">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="摂取・消費・目標摂取の推移">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="摂取・消費の推移">
         {/* グリッド */}
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <line
@@ -241,14 +242,6 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
         {/* 差分の塗り */}
         <path d={areaPath()} fill="var(--hb-graphite)" opacity={0.08} />
 
-        {/* 目標摂取(破線) */}
-        <path
-          d={linePath((d) => d.target.intake, yKcal)}
-          fill="none"
-          stroke="var(--hb-secondary)"
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
         {/* 消費: 1本の線でつなぎ、実測どうしの区間は実線、消費目安(推定)を
             含む区間は点線にする */}
         {consumptionSegments().map((s, idx) => (
@@ -307,7 +300,6 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
           消費(点線は消費目安)
         </span>
         <span><span className="dot" style={{ background: "var(--hb-tangerine)" }} />摂取</span>
-        <span><span className="dot" style={{ background: "var(--hb-secondary)" }} />目標摂取</span>
         {hasWeight && <span><span className="dot" style={{ background: "var(--hb-weight)" }} />体重(kg)</span>}
       </div>
       <p className="hb-note" style={{ marginTop: 10 }}>
