@@ -22,34 +22,11 @@ function round(n: number): number {
 
 type Period = "day" | "week" | "month";
 
-export interface DayWithEstimate extends DaySummary {
-  // 消費目安: 実測が欠けている/信頼できない日のための参考値。
-  // 直前の実測日(最大7日ぶん)の消費の平均。実測が無ければnull。
-  // 「欠損を推定で埋めない(埋めるなら別系列にして明記)」の方針に沿い、
-  // 実測の消費とは別の線として描く。
-  consumptionEstimate: number | null;
-}
-
-const ESTIMATE_WINDOW = 7;
-
-function withEstimate(range: DaySummary[]): DayWithEstimate[] {
-  return range.map((d, i) => {
-    const prior: number[] = [];
-    for (let j = i - 1; j >= 0 && prior.length < ESTIMATE_WINDOW; j--) {
-      const v = range[j].consumption.total;
-      if (v != null) prior.push(v);
-    }
-    const consumptionEstimate = prior.length ? prior.reduce((a, b) => a + b, 0) / prior.length : null;
-    return { ...d, consumptionEstimate };
-  });
-}
-
 export default function TrendView({ range }: { range: DaySummary[] }) {
   const [period, setPeriod] = useState<Period>("day");
   const [windowDays, setWindowDays] = useState(30);
 
-  const rangeWithEstimate = useMemo(() => withEstimate(range), [range]);
-  const dayWindow = useMemo(() => rangeWithEstimate.slice(-windowDays), [rangeWithEstimate, windowDays]);
+  const dayWindow = useMemo(() => range.slice(-windowDays), [range, windowDays]);
 
   const counts = useMemo(() => {
     const c: Record<Verdict, number> = {
@@ -119,7 +96,7 @@ function CountChip({ color, label, n }: { color: string; label: string; n: numbe
 }
 
 // ---- 日: 折れ線グラフ (消費・摂取・目標摂取 + 差分の塗り + 体重の副軸) ----
-function DayLineChart({ days }: { days: DayWithEstimate[] }) {
+function DayLineChart({ days }: { days: DaySummary[] }) {
   const W = Math.max(320, days.length * 26);
   const H = 220;
   const PAD_L = 44;
@@ -147,7 +124,7 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
   const yKcal = (v: number) => PAD_T + plotH - ((v - kcalMin) / (kcalMax - kcalMin || 1)) * plotH;
   const yW = (v: number) => PAD_T + plotH - ((v - wMin) / (wMax - wMin || 1)) * plotH;
 
-  const linePath = (getValue: (d: DayWithEstimate) => number | null, yFn: (v: number) => number) => {
+  const linePath = (getValue: (d: DaySummary) => number | null, yFn: (v: number) => number) => {
     let path = "";
     let open = false;
     days.forEach((d, i) => {
@@ -291,13 +268,14 @@ function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "
   return (
     <div className="hb-period-list">
       {groups.map(([key, list]) => {
-        const withCons = list.filter((d) => d.consumption.total != null);
+        const effectiveCons = (d: DaySummary) => d.consumption.total ?? d.consumptionEstimate;
+        const withCons = list.filter((d) => effectiveCons(d) != null);
         const withIntake = list.filter((d) => d.intake.totalMax != null);
         const withTarget = list.filter((d) => d.target.intake != null);
         const withWeight = list.filter((d) => d.weightKg != null);
         const avg = (arr: DaySummary[], get: (d: DaySummary) => number) =>
           arr.length ? arr.reduce((s, d) => s + get(d), 0) / arr.length : null;
-        const avgCons = avg(withCons, (d) => d.consumption.total as number);
+        const avgCons = avg(withCons, (d) => effectiveCons(d) as number);
         const avgIntake = avg(withIntake, (d) => d.intake.totalMax as number);
         const avgTarget = avg(withTarget, (d) => d.target.intake as number);
         const avgWeight = avg(withWeight, (d) => d.weightKg as number);
@@ -318,7 +296,12 @@ function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "
               </span>
             </div>
             <div className="hb-period-stats">
-              <PeriodStat label="平均消費" value={avgCons} unit="kcal" color="var(--hb-peacock)" />
+              <PeriodStat
+                label={list.some((d) => d.consumption.estimated) ? "平均消費(推定含む)" : "平均消費"}
+                value={avgCons}
+                unit="kcal"
+                color="var(--hb-peacock)"
+              />
               <PeriodStat label="平均摂取" value={avgIntake} unit="kcal" color="var(--hb-tangerine)" />
               <PeriodStat label="平均目標摂取" value={avgTarget} unit="kcal" color="var(--hb-secondary)" />
               <PeriodStat label="平均体重" value={avgWeight} unit="kg" color="var(--hb-weight)" decimals={1} />

@@ -42,20 +42,30 @@ function Ring({ summary }: { summary: DaySummary }) {
 
   const targetIntake = summary.target.intake;
   const hasScale = targetIntake !== null && targetIntake > 0;
+  const effectiveTotal = summary.consumption.total ?? summary.consumptionEstimate;
 
-  const consumptionFrac = hasScale && summary.consumption.total !== null
-    ? summary.consumption.total / (targetIntake as number)
+  const consumptionFrac = hasScale && effectiveTotal !== null
+    ? effectiveTotal / (targetIntake as number)
     : 0;
   const intakeFrac = hasScale && summary.intake.totalMax !== null
     ? summary.intake.totalMax / (targetIntake as number)
     : 0;
 
-  const arc = (radius: number, frac: number, color: string, stroke: number) => {
+  // 12時位置から時計回りに frac(0〜1)ぶん弧を描くpathを作る(remainder=端数の周ぶん)
+  const arcPath = (radius: number, frac: number) => {
+    const angle = Math.min(frac, 0.9999) * 2 * Math.PI;
+    const sx = CENTER;
+    const sy = CENTER - radius;
+    const ex = CENTER + radius * Math.sin(angle);
+    const ey = CENTER - radius * Math.cos(angle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    return `M ${sx} ${sy} A ${radius} ${radius} 0 ${largeArc} 1 ${ex} ${ey}`;
+  };
+
+  const arc = (radius: number, frac: number, color: string, stroke: number, dashed = false) => {
     const laps = Math.max(0, frac);
     const full = Math.floor(laps);
     const remainder = laps - full;
-    const circumference = 2 * Math.PI * radius;
-    const dash = Math.min(1, remainder) * circumference;
     return (
       <>
         {/* 完了した周(フル円)を薄く重ねて「何周したか」を見せる */}
@@ -71,17 +81,16 @@ function Ring({ summary }: { summary: DaySummary }) {
             opacity={0.35 + i * 0.15}
           />
         ))}
-        <circle
-          cx={CENTER}
-          cy={CENTER}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circumference - dash}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${CENTER} ${CENTER})`}
-        />
+        {remainder > 0.002 && (
+          <path
+            d={arcPath(radius, remainder)}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={dashed ? `${stroke * 0.55} ${stroke * 0.45}` : undefined}
+          />
+        )}
       </>
     );
   };
@@ -90,7 +99,7 @@ function Ring({ summary }: { summary: DaySummary }) {
     <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" role="img" aria-label="今日のカロリー収支リング">
       <circle cx={CENTER} cy={CENTER} r={R_OUT} fill="none" stroke="var(--hb-separator)" strokeWidth={STROKE} />
       <circle cx={CENTER} cy={CENTER} r={R_IN} fill="none" stroke="var(--hb-separator)" strokeWidth={STROKE} />
-      {hasScale && arc(R_OUT, consumptionFrac, "var(--hb-peacock)", STROKE)}
+      {hasScale && arc(R_OUT, consumptionFrac, "var(--hb-peacock)", STROKE, summary.consumption.estimated)}
       {hasScale && arc(R_IN, intakeFrac, "var(--hb-tangerine)", STROKE)}
     </svg>
   );
@@ -106,8 +115,9 @@ function centerText(summary: DaySummary): { big: string; sub: string } {
   if (verdict === "no_record") return { big: "—", sub: "食事記録なし" };
 
   const diff = (target.intake as number) - (intake.totalMax as number);
-  if (diff >= 0) return { big: `あと${fmt(diff)}`, sub: "kcal 食べられます" };
-  return { big: `${fmt(Math.abs(diff))}`, sub: "kcal オーバー" };
+  const estNote = consumption.estimated ? "(消費は推定) " : "";
+  if (diff >= 0) return { big: `あと${fmt(diff)}`, sub: `${estNote}kcal 食べられます` };
+  return { big: `${fmt(Math.abs(diff))}`, sub: `${estNote}kcal オーバー` };
 }
 
 export default function HealthClient({
@@ -169,8 +179,8 @@ export default function HealthClient({
 
             <div className="hb-stat-row">
               <div className="hb-stat">
-                <div className="k">消費(アクティブ+安静時)</div>
-                <div className="v">{fmt(today.consumption.total)} kcal</div>
+                <div className="k">消費(アクティブ+安静時){today.consumption.estimated ? "・推定" : ""}</div>
+                <div className="v">{fmt(today.consumption.total ?? today.consumptionEstimate)} kcal</div>
               </div>
               <div className="hb-stat">
                 <div className="k">摂取(上限合計)</div>
@@ -197,8 +207,9 @@ export default function HealthClient({
             <p className="hb-note">
               判定：<b>摂取 ≤ 消費−{today.target.deficit}</b> でセージ(達成)、
               <b>消費−{today.target.deficit} &lt; 摂取 ≤ 消費</b> でバナナ、
-              <b>摂取 &gt; 消費</b> でトマト。データ欠損・途中はグラファイト。
+              <b>摂取 &gt; 消費</b> でトマト。食事記録が無い日はグラファイト。
               kcal不明の品がある日は達成(セージ)と判定しません。
+              消費が今日まだ届いていない時は、直近(最大7日)の実測平均を消費目安として使って判定します(点線のリングが目印)。
             </p>
           </div>
         )}
