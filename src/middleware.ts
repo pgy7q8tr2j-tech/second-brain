@@ -11,14 +11,16 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/api/mcp") ||
     pathname.startsWith("/api/health/ingest") ||
+    pathname.startsWith("/api/health/today") ||
     pathname.startsWith("/.well-known/") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {
-    // /api/health/ingest は独自の Bearer トークン (HEALTH_INGEST_TOKEN) で
-    // 認証するため、UI 用セッション cookie のチェックから除外する。
+    // /api/health/ingest と /api/health/today は独自の Bearer/クエリトークン
+    // (HEALTH_INGEST_TOKEN / WIDGET_TOKEN) で認証するため、UI 用セッション
+    // cookie のチェックから除外する。
     //
     // /.well-known/ は OAuth 探索パス。ここを /login に 307 リダイレクトすると
     // Claude のコネクタが「OAuth サーバーあり」と誤認して登録を試み失敗する。
