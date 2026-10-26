@@ -190,37 +190,6 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
     return segs;
   };
 
-  const areaPath = () => {
-    // 摂取〜消費 の間を塗る(差分の可視化)。両方そろっている区間だけ。
-    // 消費は実測優先・無ければ消費目安(推定)を使う(1本の線と同じ値)。
-    const segs: string[] = [];
-    let seg: { i: number; a: number; b: number }[] = [];
-    const flush = () => {
-      if (seg.length < 2) {
-        seg = [];
-        return;
-      }
-      const top = seg.map((p) => `${x(p.i).toFixed(1)},${yKcal(p.a).toFixed(1)}`).join(" L");
-      const bottom = seg
-        .slice()
-        .reverse()
-        .map((p) => `${x(p.i).toFixed(1)},${yKcal(p.b).toFixed(1)}`)
-        .join(" L");
-      segs.push(`M${top} L${bottom} Z`);
-      seg = [];
-    };
-    days.forEach((d, i) => {
-      const cons = d.consumption.total ?? d.consumptionEstimate;
-      if (d.intake.totalMax != null && cons != null) {
-        seg.push({ i, a: d.intake.totalMax, b: cons });
-      } else {
-        flush();
-      }
-    });
-    flush();
-    return segs.join(" ");
-  };
-
   const labelEvery = Math.max(1, Math.ceil(days.length / 8));
 
   return (
@@ -238,9 +207,6 @@ function DayLineChart({ days }: { days: DayWithEstimate[] }) {
             strokeWidth={1}
           />
         ))}
-
-        {/* 差分の塗り */}
-        <path d={areaPath()} fill="var(--hb-graphite)" opacity={0.08} />
 
         {/* 消費: 1本の線でつなぎ、実測どうしの区間は実線、消費目安(推定)を
             含む区間は点線にする */}
