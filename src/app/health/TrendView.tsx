@@ -124,46 +124,37 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
   const yKcal = (v: number) => PAD_T + plotH - ((v - kcalMin) / (kcalMax - kcalMin || 1)) * plotH;
   const yW = (v: number) => PAD_T + plotH - ((v - wMin) / (wMax - wMin || 1)) * plotH;
 
+  // データが無い日はスキップして前後の実点どうしをつなぐ(線を途切れさせない)。
+  // どの日が記録なしだったかは、x軸下の判定ドット(グラファイト)で分かるように
+  // してあるので、線自体は見やすさ優先でつなげる。
   const linePath = (getValue: (d: DaySummary) => number | null, yFn: (v: number) => number) => {
-    let path = "";
-    let open = false;
-    days.forEach((d, i) => {
-      const v = getValue(d);
-      if (v == null) {
-        open = false;
-        return;
-      }
-      const cmd = open ? "L" : "M";
-      path += `${cmd}${x(i).toFixed(1)},${yFn(v).toFixed(1)} `;
-      open = true;
-    });
-    return path.trim();
+    const pts = days.map((d, i) => ({ i, v: getValue(d) })).filter((p): p is { i: number; v: number } => p.v != null);
+    return pts.map((p, idx) => `${idx === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${yFn(p.v).toFixed(1)}`).join(" ");
   };
 
   // 消費を1本の線としてつなぐ: 実測どうしの区間は実線、どちらか一方でも
   // 推定(消費目安)を使った区間は点線にする。値自体は実測優先
-  // (実測があれば実測、無ければ消費目安)でつなぎ、線が途切れないようにする。
+  // (実測があれば実測、無ければ消費目安)でつなぎ、データの無い日もスキップして
+  // 前後の実点どうしをつなぐ(線を途切れさせない)。
   const consumptionSegments = () => {
+    const pts = days
+      .map((d, i) => {
+        const v = d.consumption.total ?? d.consumptionEstimate;
+        return v == null ? null : { i, v, real: d.consumption.total != null };
+      })
+      .filter((p): p is { i: number; v: number; real: boolean } => p != null);
     const segs: { x1: number; y1: number; x2: number; y2: number; solid: boolean }[] = [];
-    let prev: { i: number; v: number; real: boolean } | null = null;
-    days.forEach((d, i) => {
-      const v = d.consumption.total ?? d.consumptionEstimate;
-      if (v == null) {
-        prev = null;
-        return;
-      }
-      const real = d.consumption.total != null;
-      if (prev) {
-        segs.push({
-          x1: x(prev.i),
-          y1: yKcal(prev.v),
-          x2: x(i),
-          y2: yKcal(v),
-          solid: prev.real && real,
-        });
-      }
-      prev = { i, v, real };
-    });
+    for (let k = 1; k < pts.length; k++) {
+      const prev = pts[k - 1];
+      const cur = pts[k];
+      segs.push({
+        x1: x(prev.i),
+        y1: yKcal(prev.v),
+        x2: x(cur.i),
+        y2: yKcal(cur.v),
+        solid: prev.real && cur.real,
+      });
+    }
     return segs;
   };
 
