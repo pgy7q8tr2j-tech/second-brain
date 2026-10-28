@@ -93,8 +93,6 @@ async function buildWidget() {
     addStat(row, "消費", data.consumption.total, data.ringColors.consumption, data.consumption.estimated ? "※" : "");
     row.addSpacer(18);
     addStat(row, "摂取", data.intake.totalMax, data.ringColors.intake, data.intake.hasUnknownKcalItem ? "※" : "");
-    row.addSpacer(18);
-    addStat(row, "目標", data.target.intake, "#8e8e93", "");
   }
 
   widget.addSpacer();

@@ -47,12 +47,14 @@ function checkAuth(req: Request): boolean {
 }
 
 function centerText(summary: Awaited<ReturnType<typeof getDaySummary>>): { big: string; sub: string } {
-  const { verdict, target, consumption, intake } = summary;
+  const { verdict, consumption, intake } = summary;
   if (verdict === "no_consumption") return { big: "—", sub: "健康データ未受信" };
   if (verdict === "in_progress") return { big: "途中", sub: "消費データが更新待ち" };
   if (verdict === "no_record") return { big: "—", sub: "食事記録なし" };
 
-  const diff = (target.intake as number) - (intake.totalMax as number);
+  // 基準は消費と摂取の差のみ(目標の赤字分は使わない)
+  const effectiveTotal = (consumption.total ?? summary.consumptionEstimate) as number;
+  const diff = effectiveTotal - (intake.totalMax as number);
   const estNote = consumption.estimated ? "(消費は推定) " : "";
   if (diff >= 0) return { big: `あと${Math.round(diff)}`, sub: `${estNote}kcal 食べられます` };
   return { big: `${Math.round(Math.abs(diff))}`, sub: `${estNote}kcal オーバー` };
@@ -83,7 +85,6 @@ export async function GET(req: Request) {
         totalMax: summary.intake.totalMax,
         hasUnknownKcalItem: summary.intake.hasUnknownKcalItem,
       },
-      target: summary.target,
       lastSentAt: summary.consumption.lastSentAt,
     });
   } catch (e) {

@@ -72,9 +72,9 @@ export default function TrendView({ range }: { range: DaySummary[] }) {
           </div>
           <DayLineChart days={dayWindow} />
           <div className="hb-count-row">
-            <CountChip color="var(--hb-sage)" label="達成" n={counts.achieved} />
-            <CountChip color="var(--hb-banana)" label="未達成" n={counts.under} />
-            <CountChip color="var(--hb-tomato)" label="オーバー" n={counts.over} />
+            <CountChip color="var(--hb-sage)" label="黒字" n={counts.achieved} />
+            <CountChip color="var(--hb-banana)" label="黒字(不明あり)" n={counts.under} />
+            <CountChip color="var(--hb-tomato)" label="赤字" n={counts.over} />
             <CountChip color="var(--hb-graphite)" label="記録なし等" n={counts.no_record + counts.no_consumption + counts.in_progress} />
           </div>
         </>
@@ -252,7 +252,7 @@ function DayLineChart({ days }: { days: DaySummary[] }) {
   );
 }
 
-// ---- 週/月: 期間カードのリスト (平均 + 目標達成日数) ----
+// ---- 週/月: 期間カードのリスト (平均 + 黒字日数) ----
 function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "month" }) {
   const groups = useMemo(() => {
     const map = new Map<string, DaySummary[]>();
@@ -271,13 +271,11 @@ function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "
         const effectiveCons = (d: DaySummary) => d.consumption.total ?? d.consumptionEstimate;
         const withCons = list.filter((d) => effectiveCons(d) != null);
         const withIntake = list.filter((d) => d.intake.totalMax != null);
-        const withTarget = list.filter((d) => d.target.intake != null);
         const withWeight = list.filter((d) => d.weightKg != null);
         const avg = (arr: DaySummary[], get: (d: DaySummary) => number) =>
           arr.length ? arr.reduce((s, d) => s + get(d), 0) / arr.length : null;
         const avgCons = avg(withCons, (d) => effectiveCons(d) as number);
         const avgIntake = avg(withIntake, (d) => d.intake.totalMax as number);
-        const avgTarget = avg(withTarget, (d) => d.target.intake as number);
         const avgWeight = avg(withWeight, (d) => d.weightKg as number);
         const achieved = list.filter((d) => d.verdict === "achieved").length;
 
@@ -292,7 +290,7 @@ function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "
                 {groupBy === "month" ? monthLabel(key) : weekLabel(key)}
               </span>
               <span className="hb-period-badge" style={{ color: ratioColor, borderColor: ratioColor }}>
-                目標達成 {achieved}日中{list.length}日
+                黒字 {achieved}日中{list.length}日
               </span>
             </div>
             <div className="hb-period-stats">
@@ -303,7 +301,6 @@ function PeriodList({ days, groupBy }: { days: DaySummary[]; groupBy: "week" | "
                 color="var(--hb-peacock)"
               />
               <PeriodStat label="平均摂取" value={avgIntake} unit="kcal" color="var(--hb-tangerine)" />
-              <PeriodStat label="平均目標摂取" value={avgTarget} unit="kcal" color="var(--hb-secondary)" />
               <PeriodStat label="平均体重" value={avgWeight} unit="kg" color="var(--hb-weight)" decimals={1} />
             </div>
           </div>

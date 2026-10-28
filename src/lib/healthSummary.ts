@@ -1,5 +1,5 @@
 import { getHealthDay, getHealthRange, type HealthDay } from "./health";
-import { listMealItems, getCalorieDeficitTarget, type MealItem } from "./meals";
+import { listMealItems, type MealItem } from "./meals";
 
 // ============================================================
 // 健康ダッシュボードの収支サマリー (今日のリング・推移グラフ共通)。
@@ -49,10 +49,6 @@ export interface DaySummary {
   // 実測が無ければnull。ring/グラフどちらも「実測total ?? この値」を使う。
   consumptionEstimate: number | null;
   weightKg: number | null;
-  target: {
-    deficit: number; // 目標の赤字 (kcal/日)。既定500
-    intake: number | null; // 目標摂取 = (実測 or 推定の)消費-deficit。どちらも無ければnull
-  };
   intake: {
     hasAnyRecord: boolean; // その日に meal_items の行が1件以上あるか
     totalMax: number | null; // kcal_max(無ければkcal_min)の合計。品が無ければnull
@@ -121,12 +117,14 @@ function estimateFor(priorRealTotals: number[]): number | null {
   return priorRealTotals.reduce((a, b) => a + b, 0) / priorRealTotals.length;
 }
 
-function finalize(raw: RawDay, deficit: number, consumptionEstimate: number | null): DaySummary {
+// 判定の基準は「消費と摂取の差」のみ(目標の赤字分は使わない)。
+// 摂取 ≤ 消費 なら黒字(達成扱い)、摂取 > 消費 なら赤字(オーバー)。
+// kcal不明の品がある日は、黒字でも達成(セージ)とは判定しない(バナナに留める)。
+function finalize(raw: RawDay, consumptionEstimate: number | null): DaySummary {
   // 消費が実測で届いていない日は、常に消費目安(推定)を使って判定を続ける
   // (「仮の数値で常に反映させて」の方針)。実測が届いていればそちらを優先する。
   const estimated = !raw.hasAny && consumptionEstimate != null;
   const effectiveTotal = raw.hasAny ? raw.total : consumptionEstimate;
-  const targetIntake = effectiveTotal != null ? effectiveTotal - deficit : null;
 
   let verdict: Verdict;
 
@@ -139,16 +137,10 @@ function finalize(raw: RawDay, deficit: number, consumptionEstimate: number | nu
     verdict = "in_progress";
   } else if (!raw.hasAnyRecord) {
     verdict = "no_record";
+  } else if (raw.totalMax! <= effectiveTotal) {
+    verdict = raw.hasUnknownKcalItem ? "under" : "achieved";
   } else {
-    const t = targetIntake as number;
-    const tot = effectiveTotal;
-    if (raw.totalMax! <= t) {
-      verdict = raw.hasUnknownKcalItem ? "under" : "achieved";
-    } else if (raw.totalMax! <= tot) {
-      verdict = "under";
-    } else {
-      verdict = "over";
-    }
+    verdict = "over";
   }
 
   return {
@@ -164,14 +156,12 @@ function finalize(raw: RawDay, deficit: number, consumptionEstimate: number | nu
     },
     consumptionEstimate,
     weightKg: raw.weightKg,
-    target: { deficit, intake: targetIntake },
     intake: { hasAnyRecord: raw.hasAnyRecord, totalMax: raw.totalMax, hasUnknownKcalItem: raw.hasUnknownKcalItem },
     verdict,
   };
 }
 
-export async function getDaySummary(date: string, target?: number): Promise<DaySummary> {
-  const deficit = target ?? (await getCalorieDeficitTarget());
+export async function getDaySummary(date: string): Promise<DaySummary> {
   const isToday = date === todayJST();
 
   const [health, items, lookback] = await Promise.all([
@@ -191,14 +181,13 @@ export async function getDaySummary(date: string, target?: number): Promise<DayS
     .slice(-ESTIMATE_WINDOW);
   const estimate = estimateFor(priorTotals);
 
-  return finalize(raw, deficit, estimate);
+  return finalize(raw, estimate);
 }
 
 // 期間内(両端含む, 最大90日)の日ごとのサマリーを返す。データの無い日も
 // 「記録なし/消費データ未受信」のDaySummaryとして含める(欠落を暗黙に0扱いしない)。
 // 消費が実測で届いていない日は、直前(最大7日)の実測平均を消費目安として使う。
-export async function getRangeSummaries(from: string, to: string, target?: number): Promise<DaySummary[]> {
-  const deficit = target ?? (await getCalorieDeficitTarget());
+export async function getRangeSummaries(from: string, to: string): Promise<DaySummary[]> {
   const lookbackFrom = addDays(from, -ESTIMATE_WINDOW);
   // getHealthRange は最大90日までしか受け付けないため、表示期間(最大90日)とは
   // 別にlookback(最大7日)を分けて取得する(1回のリクエストにまとめると97日に
@@ -233,7 +222,7 @@ export async function getRangeSummaries(from: string, to: string, target?: numbe
       if (raws[j].total != null) priorTotals.push(raws[j].total as number);
     }
     const estimate = estimateFor(priorTotals);
-    out.push(finalize(raw, deficit, estimate));
+    out.push(finalize(raw, estimate));
   });
   return out;
 }

@@ -29,84 +29,37 @@ function fmt(n: number | null): string {
   return Math.round(n).toLocaleString("ja-JP");
 }
 
-// 消費(外側)・摂取(内側)を同じ基準(目標摂取=消費-500)で描く同心円リング。
-// 目標摂取を1周として、消費はその分+500kcalぶん必ず一周を超えて描かれる
-// (これが「まだ食べられる量」の視覚的な余白になる)。摂取が目標を超えたら
-// 重ねて一周以上描く。
-function Ring({ summary }: { summary: DaySummary }) {
-  const SIZE = 260;
-  const CENTER = SIZE / 2;
-  const R_OUT = 110;
-  const R_IN = 82;
-  const STROKE = 20;
-
-  const targetIntake = summary.target.intake;
-  const hasScale = targetIntake !== null && targetIntake > 0;
-  const effectiveTotal = summary.consumption.total ?? summary.consumptionEstimate;
-
-  const consumptionFrac = hasScale && effectiveTotal !== null
-    ? effectiveTotal / (targetIntake as number)
-    : 0;
-  const intakeFrac = hasScale && summary.intake.totalMax !== null
-    ? summary.intake.totalMax / (targetIntake as number)
-    : 0;
-
-  // 12時位置から時計回りに frac(0〜1)ぶん弧を描くpathを作る(remainder=端数の周ぶん)
-  const arcPath = (radius: number, frac: number) => {
-    const angle = Math.min(frac, 0.9999) * 2 * Math.PI;
-    const sx = CENTER;
-    const sy = CENTER - radius;
-    const ex = CENTER + radius * Math.sin(angle);
-    const ey = CENTER - radius * Math.cos(angle);
-    const largeArc = angle > Math.PI ? 1 : 0;
-    return `M ${sx} ${sy} A ${radius} ${radius} 0 ${largeArc} 1 ${ex} ${ey}`;
-  };
-
-  const arc = (radius: number, frac: number, color: string, stroke: number, dashed = false) => {
-    const laps = Math.max(0, frac);
-    const full = Math.floor(laps);
-    const remainder = laps - full;
-    return (
-      <>
-        {/* 完了した周(フル円)を薄く重ねて「何周したか」を見せる */}
-        {Array.from({ length: full }).map((_, i) => (
-          <circle
-            key={i}
-            cx={CENTER}
-            cy={CENTER}
-            r={radius}
-            fill="none"
-            stroke={color}
-            strokeWidth={stroke}
-            opacity={0.35 + i * 0.15}
-          />
-        ))}
-        {remainder > 0.002 && (
-          <path
-            d={arcPath(radius, remainder)}
-            fill="none"
-            stroke={color}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            strokeDasharray={dashed ? `${stroke * 0.55} ${stroke * 0.45}` : undefined}
-          />
-        )}
-      </>
-    );
-  };
-
+// 消費・摂取を同じ横幅基準で比べる棒グラフ。円グラフより長さの比較がしやすい。
+function BarRow({
+  label,
+  value,
+  max,
+  color,
+  note,
+}: {
+  label: string;
+  value: number | null;
+  max: number;
+  color: string;
+  note?: string;
+}) {
+  const pct = value != null && max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" role="img" aria-label="今日のカロリー収支リング">
-      <circle cx={CENTER} cy={CENTER} r={R_OUT} fill="none" stroke="var(--hb-separator)" strokeWidth={STROKE} />
-      <circle cx={CENTER} cy={CENTER} r={R_IN} fill="none" stroke="var(--hb-separator)" strokeWidth={STROKE} />
-      {hasScale && arc(R_OUT, consumptionFrac, "var(--hb-peacock)", STROKE, summary.consumption.estimated)}
-      {hasScale && arc(R_IN, intakeFrac, "var(--hb-tangerine)", STROKE)}
-    </svg>
+    <div className="hb-bar-row">
+      <span className="hb-bar-label">{label}</span>
+      <div className="hb-bar-track">
+        <div className="hb-bar-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <span className="hb-bar-value">
+        {fmt(value)} kcal
+        {note ? <sup className="hb-bar-note">{note}</sup> : null}
+      </span>
+    </div>
   );
 }
 
 function centerText(summary: DaySummary): { big: string; sub: string } {
-  const { verdict, target, consumption, intake } = summary;
+  const { verdict, consumption, intake } = summary;
   if (verdict === "no_consumption") return { big: "—", sub: "健康データ未受信" };
   if (verdict === "in_progress") {
     const h = consumption.staleHours ?? 0;
@@ -114,7 +67,8 @@ function centerText(summary: DaySummary): { big: string; sub: string } {
   }
   if (verdict === "no_record") return { big: "—", sub: "食事記録なし" };
 
-  const diff = (target.intake as number) - (intake.totalMax as number);
+  const effectiveTotal = (consumption.total ?? summary.consumptionEstimate) as number;
+  const diff = effectiveTotal - (intake.totalMax as number);
   const estNote = consumption.estimated ? "(消費は推定) " : "";
   if (diff >= 0) return { big: `あと${fmt(diff)}`, sub: `${estNote}kcal 食べられます` };
   return { big: `${fmt(Math.abs(diff))}`, sub: `${estNote}kcal オーバー` };
@@ -133,6 +87,9 @@ export default function HealthClient({
   const color = VERDICT_COLOR[today.verdict];
   const soft = VERDICT_SOFT[today.verdict];
   const { big, sub } = centerText(today);
+
+  const effectiveConsumption = today.consumption.total ?? today.consumptionEstimate;
+  const barMax = Math.max(effectiveConsumption ?? 0, today.intake.totalMax ?? 0, 1) * 1.08;
 
   return (
     <div className="health-root">
@@ -157,39 +114,34 @@ export default function HealthClient({
       <div className="hb-main">
         {tab === "today" && (
           <div className="hb-card">
-            <div className="hb-ring-wrap">
-              <Ring summary={today} />
-              <div className="hb-ring-center">
-                <div className="hb-ring-number" style={{ color }}>
-                  {big}
-                </div>
-                <div className="hb-ring-sub">{sub}</div>
-                {today.intake.hasUnknownKcalItem && (
-                  <span className="hb-ring-badge" style={{ background: soft, color }}>
-                    kcal不明あり
-                  </span>
-                )}
-              </div>
+            <div className="hb-center-number" style={{ color }}>
+              {big}
             </div>
+            <div className="hb-center-sub">{sub}</div>
+            {today.intake.hasUnknownKcalItem && (
+              <span className="hb-ring-badge" style={{ background: soft, color }}>
+                kcal不明あり
+              </span>
+            )}
 
-            <div className="hb-legend-row">
-              <span><span className="dot" style={{ background: "var(--hb-peacock)" }} />消費</span>
-              <span><span className="dot" style={{ background: "var(--hb-tangerine)" }} />摂取</span>
+            <div className="hb-bars">
+              <BarRow
+                label="消費"
+                value={effectiveConsumption}
+                max={barMax}
+                color="var(--hb-peacock)"
+                note={today.consumption.estimated ? "推定" : undefined}
+              />
+              <BarRow
+                label="摂取"
+                value={today.intake.totalMax}
+                max={barMax}
+                color="var(--hb-tangerine)"
+                note={today.intake.hasUnknownKcalItem ? "不明あり" : undefined}
+              />
             </div>
 
             <div className="hb-stat-row">
-              <div className="hb-stat">
-                <div className="k">消費(アクティブ+安静時){today.consumption.estimated ? "・推定" : ""}</div>
-                <div className="v">{fmt(today.consumption.total ?? today.consumptionEstimate)} kcal</div>
-              </div>
-              <div className="hb-stat">
-                <div className="k">摂取(上限合計)</div>
-                <div className="v">{fmt(today.intake.totalMax)} kcal</div>
-              </div>
-              <div className="hb-stat">
-                <div className="k">目標摂取(消費−{today.target.deficit})</div>
-                <div className="v">{fmt(today.target.intake)} kcal</div>
-              </div>
               <div className="hb-stat">
                 <div className="k">最終受信</div>
                 <div className="v" style={{ fontSize: 13 }}>
@@ -202,14 +154,16 @@ export default function HealthClient({
                     : "—"}
                 </div>
               </div>
+              <div className="hb-stat">
+                <div className="k">体重</div>
+                <div className="v">{today.weightKg != null ? `${today.weightKg.toFixed(1)} kg` : "—"}</div>
+              </div>
             </div>
 
             <p className="hb-note">
-              判定：<b>摂取 ≤ 消費−{today.target.deficit}</b> でセージ(達成)、
-              <b>消費−{today.target.deficit} &lt; 摂取 ≤ 消費</b> でバナナ、
-              <b>摂取 &gt; 消費</b> でトマト。食事記録が無い日はグラファイト。
-              kcal不明の品がある日は達成(セージ)と判定しません。
-              消費が今日まだ届いていない時は、直近(最大7日)の実測平均を消費目安として使って判定します(点線のリングが目印)。
+              判定：<b>摂取 ≤ 消費</b>でセージ(黒字)、<b>摂取 &gt; 消費</b>でトマト(赤字)。
+              食事記録が無い日はグラファイト。kcal不明の品がある日は黒字でもセージ(確定達成)とは判定しません。
+              消費が今日まだ届いていない時は、直近(最大7日)の実測平均を消費目安として使って判定します。
             </p>
           </div>
         )}
