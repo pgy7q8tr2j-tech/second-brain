@@ -24,6 +24,14 @@ import {
   MEAL_SLOTS,
   BASES,
 } from "@/lib/meals";
+import {
+  addExpenses,
+  listExpenses,
+  updateExpense,
+  deleteExpense,
+  getSpendingSummary,
+  CURRENCIES,
+} from "@/lib/expenses";
 
 // Neon + ストリーミングのため Node.js ランタイムで動かす
 export const runtime = "nodejs";
@@ -371,6 +379,135 @@ const handler = createMcpHandler(
         try {
           await setSetting(key, value);
           return ok({ key, value });
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- add_expenses --------
+    server.tool(
+      "add_expenses",
+      "支出を1件以上まとめて登録する(家計簿)。ユーザーが金額を伝えたら、ジャンル(category_major/category_minor)はClaudeが判断して付ける。判断に迷うものは記録後にユーザーへ確認する。ジャンルの選択肢は get_setting('expense_categories') で確認できる(JSON: 大分類→小分類配列。小分類が空配列の大分類はcategory_minorを省略してよい)。currency='GBP'でget_setting('gbp_jpy_rate')が未設定の場合、amount_jpyはnullになり集計では「換算なし」として扱われる。",
+      {
+        items: z
+          .array(
+            z.object({
+              expense_date: z
+                .string()
+                .describe(
+                  "支払った日 YYYY-MM-DD。支払った場所の現地時間のカレンダー日付で判断する(日本ならJST、ロンドンならイギリス時間)。深夜0時を過ぎた支払いは翌日扱い。",
+                ),
+              amount: z.number().positive().describe("金額(元の通貨。税込の実際の支払額)"),
+              currency: z.enum(CURRENCIES as [string, ...string[]]).describe("JPY|GBP"),
+              category_major: z.string().min(1).describe("大分類"),
+              category_minor: z.string().nullable().optional().describe("小分類。無い大分類では省略可"),
+              memo: z.string().nullable().optional().describe("内容メモ(店名・品名など)"),
+              is_business: z.boolean().optional().describe("タトゥー事業の経費か(既定false)"),
+              payment_method: z.string().nullable().optional().describe("支払い方法(任意。現金/カード名など)"),
+              source_meal_item_id: z.string().nullable().optional().describe("食事と同時に記録した場合、関連する食事記録(meal_items)のid"),
+            }),
+          )
+          .min(1),
+      },
+      async ({ items }) => {
+        try {
+          return ok(await addExpenses(items as never));
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- list_expenses --------
+    server.tool(
+      "list_expenses",
+      "期間内(両端含む)の支出を日付順で返す。category_major/is_business/currencyで絞り込み可。",
+      {
+        from: z.string().describe("開始日 YYYY-MM-DD"),
+        to: z.string().describe("終了日 YYYY-MM-DD"),
+        category_major: z.string().optional().describe("大分類で絞り込み"),
+        is_business: z.boolean().optional().describe("事業(true)/私生活(false)で絞り込み"),
+        currency: z.enum(CURRENCIES as [string, ...string[]]).optional().describe("JPY|GBPで絞り込み"),
+      },
+      async ({ from, to, category_major, is_business, currency }) => {
+        try {
+          return ok(
+            await listExpenses({
+              from,
+              to,
+              category_major: category_major ?? null,
+              is_business: is_business ?? null,
+              currency: (currency as "JPY" | "GBP" | undefined) ?? null,
+            }),
+          );
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- update_expense --------
+    server.tool(
+      "update_expense",
+      "支出を部分更新する。amountまたはcurrencyを変更すると、その時点の gbp_jpy_rate 設定を使って円換算額(amount_jpy)とレート(fx_rate)が自動で再計算される(他のフィールドだけの更新では換算は変わらない)。",
+      {
+        id: z.string(),
+        expense_date: z.string().optional(),
+        amount: z.number().positive().optional(),
+        currency: z.enum(CURRENCIES as [string, ...string[]]).optional(),
+        category_major: z.string().optional(),
+        category_minor: z.string().nullable().optional(),
+        memo: z.string().nullable().optional(),
+        is_business: z.boolean().optional(),
+        payment_method: z.string().nullable().optional(),
+        source_meal_item_id: z.string().nullable().optional(),
+      },
+      async ({ id, ...fields }) => {
+        try {
+          const expense = await updateExpense(id, fields as never);
+          return expense ? ok(expense) : fail(`expense not found: ${id}`);
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- delete_expense --------
+    server.tool(
+      "delete_expense",
+      "支出を1件削除する。",
+      { id: z.string() },
+      async ({ id }) => {
+        try {
+          const expense = await deleteExpense(id);
+          return expense ? ok({ deleted: true, expense }) : fail(`expense not found: ${id}`);
+        } catch (e) {
+          return fail(e);
+        }
+      },
+    );
+
+    // -------- get_spending_summary --------
+    server.tool(
+      "get_spending_summary",
+      "期間指定で支出の合計を ジャンル別・通貨別・事業/私生活別 に集計して返す。円換算できていない(GBPでレート未設定)分は unconverted_gbp / unconverted_amount として別枠で返るので、total_jpyだけでは「換算なし」の支出が漏れることに注意。",
+      {
+        from: z.string().describe("開始日 YYYY-MM-DD"),
+        to: z.string().describe("終了日 YYYY-MM-DD"),
+        is_business: z.boolean().optional().describe("事業(true)/私生活(false)で絞り込み"),
+        currency: z.enum(CURRENCIES as [string, ...string[]]).optional().describe("JPY|GBPで絞り込み"),
+      },
+      async ({ from, to, is_business, currency }) => {
+        try {
+          return ok(
+            await getSpendingSummary({
+              from,
+              to,
+              is_business: is_business ?? null,
+              currency: (currency as "JPY" | "GBP" | undefined) ?? null,
+            }),
+          );
         } catch (e) {
           return fail(e);
         }

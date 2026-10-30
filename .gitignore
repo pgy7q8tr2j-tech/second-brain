@@ -12,6 +12,9 @@
 .env
 .env*.local
 
+# backups (個人データのため追跡しない)
+/backups/
+
 # misc
 .DS_Store
 *.pem
