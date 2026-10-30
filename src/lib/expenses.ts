@@ -42,6 +42,17 @@ export interface ExpenseInput {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const RATE_SETTING_KEY = "gbp_jpy_rate";
 
+// expense_date は DATE列。Neonのドライバは DATE を JS Date として解釈するため、
+// 素の SELECT/RETURNING * のままだと JSON化した際に "YYYY-MM-DDT00:00:00.000Z" のような
+// タイムゾーン付きの表現になってしまう(meal_items.record_date も同じ問題を抱えている)。
+// 必ず to_char() で "YYYY-MM-DD" の文字列に変換してから返す。
+const SELECT_COLUMNS = `
+  id, created_at, updated_at,
+  to_char(expense_date, 'YYYY-MM-DD') AS expense_date,
+  amount, currency, amount_jpy, fx_rate,
+  category_major, category_minor, memo, is_business, payment_method, source_meal_item_id
+`;
+
 // Neon は NUMERIC 列を文字列で返す (meal_items と同じ理由で正規化する)。
 function normalizeRow(row: Expense): Expense {
   return {
@@ -92,17 +103,26 @@ export async function addExpenses(items: ExpenseInput[]): Promise<Expense[]> {
   for (const item of items) {
     validate(item);
     const { amount_jpy, fx_rate } = await computeConversion(item.amount, item.currency);
-    const rows = (await sql`
-      INSERT INTO expenses
-        (expense_date, amount, currency, amount_jpy, fx_rate,
-         category_major, category_minor, memo, is_business, payment_method, source_meal_item_id)
-      VALUES (
-        ${item.expense_date}, ${item.amount}, ${item.currency}, ${amount_jpy}, ${fx_rate},
-        ${item.category_major}, ${item.category_minor ?? null}, ${item.memo ?? null},
-        ${item.is_business ?? false}, ${item.payment_method ?? null}, ${item.source_meal_item_id ?? null}
-      )
-      RETURNING *
-    `) as Expense[];
+    const rows = (await sql(
+      `INSERT INTO expenses
+         (expense_date, amount, currency, amount_jpy, fx_rate,
+          category_major, category_minor, memo, is_business, payment_method, source_meal_item_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING ${SELECT_COLUMNS}`,
+      [
+        item.expense_date,
+        item.amount,
+        item.currency,
+        amount_jpy,
+        fx_rate,
+        item.category_major,
+        item.category_minor ?? null,
+        item.memo ?? null,
+        item.is_business ?? false,
+        item.payment_method ?? null,
+        item.source_meal_item_id ?? null,
+      ],
+    )) as Expense[];
     results.push(normalizeRow(rows[0]));
   }
   return results;
@@ -120,14 +140,15 @@ export async function listExpenses(filters: {
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
     throw new Error("from/to が YYYY-MM-DD ではありません");
   }
-  const rows = (await sql`
-    SELECT * FROM expenses
-    WHERE expense_date BETWEEN ${from} AND ${to}
-      AND (${filters.category_major ?? null}::text IS NULL OR category_major = ${filters.category_major ?? null})
-      AND (${filters.is_business ?? null}::boolean IS NULL OR is_business = ${filters.is_business ?? null})
-      AND (${filters.currency ?? null}::text IS NULL OR currency = ${filters.currency ?? null})
-    ORDER BY expense_date ASC, created_at ASC
-  `) as Expense[];
+  const rows = (await sql(
+    `SELECT ${SELECT_COLUMNS} FROM expenses
+     WHERE expense_date BETWEEN $1 AND $2
+       AND ($3::text IS NULL OR category_major = $3)
+       AND ($4::boolean IS NULL OR is_business = $4)
+       AND ($5::text IS NULL OR currency = $5)
+     ORDER BY expense_date ASC, created_at ASC`,
+    [from, to, filters.category_major ?? null, filters.is_business ?? null, filters.currency ?? null],
+  )) as Expense[];
   return rows.map(normalizeRow);
 }
 
@@ -152,7 +173,7 @@ export async function updateExpense(
     ([k, v]) => UPDATABLE.includes(k as keyof ExpenseInput) && v !== undefined,
   );
   if (entries.length === 0) {
-    const rows = (await sql`SELECT * FROM expenses WHERE id = ${id}::uuid`) as Expense[];
+    const rows = (await sql(`SELECT ${SELECT_COLUMNS} FROM expenses WHERE id = $1::uuid`, [id])) as Expense[];
     return rows[0] ? normalizeRow(rows[0]) : null;
   }
 
@@ -160,10 +181,12 @@ export async function updateExpense(
   // 記録時点の値として作り直す(既存の換算は変えない限りそのまま)。
   const extra: Record<string, unknown> = {};
   if ("amount" in fields || "currency" in fields) {
-    const current = (await sql`SELECT * FROM expenses WHERE id = ${id}::uuid`) as Expense[];
+    const current = (await sql`SELECT amount, currency FROM expenses WHERE id = ${id}::uuid`) as Array<
+      Pick<Expense, "amount" | "currency">
+    >;
     if (!current[0]) return null;
     const amount = fields.amount ?? Number(current[0].amount);
-    const currency = fields.currency ?? (current[0].currency as Currency);
+    const currency = fields.currency ?? current[0].currency;
     const { amount_jpy, fx_rate } = await computeConversion(amount, currency);
     extra.amount_jpy = amount_jpy;
     extra.fx_rate = fx_rate;
@@ -172,16 +195,17 @@ export async function updateExpense(
   const allEntries = [...entries, ...Object.entries(extra)];
   const setParts = allEntries.map(([k], i) => `${k} = $${i + 2}`);
   const params = [id, ...allEntries.map(([, v]) => v)];
-  const text = `UPDATE expenses SET ${setParts.join(", ")} WHERE id = $1::uuid RETURNING *`;
+  const text = `UPDATE expenses SET ${setParts.join(", ")} WHERE id = $1::uuid RETURNING ${SELECT_COLUMNS}`;
   const rows = (await sql(text, params)) as Expense[];
   return rows[0] ? normalizeRow(rows[0]) : null;
 }
 
 // ---- delete_expense -----------------------------------------
 export async function deleteExpense(id: string): Promise<Expense | null> {
-  const rows = (await sql`
-    DELETE FROM expenses WHERE id = ${id}::uuid RETURNING *
-  `) as Expense[];
+  const rows = (await sql(
+    `DELETE FROM expenses WHERE id = $1::uuid RETURNING ${SELECT_COLUMNS}`,
+    [id],
+  )) as Expense[];
   return rows[0] ? normalizeRow(rows[0]) : null;
 }
 
