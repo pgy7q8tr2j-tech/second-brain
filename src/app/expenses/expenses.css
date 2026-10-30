@@ -1,0 +1,422 @@
+/* ============================================================
+   家計簿ダッシュボード専用スタイル。health.css と同じデザイントークン
+   (配色・カード・タブ等)を使い、見た目を揃える。クラス名は "ex-" prefix、
+   ルートは .exp-root としてスコープを分け、/health とは独立させてある。
+   配色の出典は health.css と同じ (Google Calendar の予定色)。
+   ============================================================ */
+
+.exp-root {
+  --ex-bg: #f2f2f7;
+  --ex-card: #ffffff;
+  --ex-separator: #e5e5ea;
+  --ex-text: #1c1c1e;
+  --ex-secondary: #8e8e93;
+  --ex-accent: #007aff;
+
+  /* Google Calendar 由来のジャンル用パレット (循環で割り当てる) */
+  --ex-lavender: #7986cb;
+  --ex-sage: #33b679;
+  --ex-grape: #8e24aa;
+  --ex-flamingo: #e67c73;
+  --ex-banana: #f6bf26;
+  --ex-tangerine: #f4511e;
+  --ex-peacock: #039be5;
+  --ex-graphite: #616161;
+  --ex-blueberry: #3f51b5;
+  --ex-basil: #0b8043;
+  --ex-tomato: #d50000;
+
+  --ex-business: #8e24aa; /* Grape。事業フラグの強調色 */
+  --ex-warn-soft: rgba(246, 191, 38, 0.16);
+
+  background: var(--ex-bg);
+  color: var(--ex-text);
+  min-height: 100vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  .exp-root:not([data-theme="light"]) {
+    --ex-bg: #000000;
+    --ex-card: #1c1c1e;
+    --ex-separator: #38383a;
+    --ex-text: #f2f2f7;
+    --ex-secondary: #98989d;
+    --ex-accent: #0a84ff;
+    --ex-warn-soft: rgba(246, 191, 38, 0.24);
+  }
+}
+.exp-root[data-theme="dark"] {
+  --ex-bg: #000000;
+  --ex-card: #1c1c1e;
+  --ex-separator: #38383a;
+  --ex-text: #f2f2f7;
+  --ex-secondary: #98989d;
+  --ex-accent: #0a84ff;
+  --ex-warn-soft: rgba(246, 191, 38, 0.24);
+}
+
+.exp-root * {
+  box-sizing: border-box;
+}
+
+.ex-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ex-card);
+  border-bottom: 1px solid var(--ex-separator);
+}
+.ex-header a {
+  color: var(--ex-accent);
+  text-decoration: none;
+  font-size: 16px;
+}
+.ex-header .ex-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ex-seg-row {
+  padding: 10px 16px 0;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+.ex-seg {
+  display: flex;
+  background: var(--ex-bg);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.ex-seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--ex-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 7px 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ex-seg-btn[data-active="true"] {
+  background: var(--ex-card);
+  color: var(--ex-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.ex-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+}
+.ex-tab {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ex-separator);
+  background: var(--ex-card);
+  color: var(--ex-secondary);
+  cursor: pointer;
+}
+.ex-tab[data-active="true"] {
+  background: var(--ex-accent);
+  border-color: var(--ex-accent);
+  color: #fff;
+}
+
+.ex-main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 4px 16px 48px;
+}
+
+.ex-card {
+  background: var(--ex-card);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 10px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ex-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ex-nav-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 10px;
+  border: 1px solid var(--ex-separator);
+  background: var(--ex-bg);
+  color: var(--ex-text);
+  font-size: 16px;
+  cursor: pointer;
+}
+.ex-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ex-month-label {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.ex-center-number {
+  text-align: center;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ex-center-sub {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ex-secondary);
+  margin-top: 4px;
+}
+
+.ex-warn-badge {
+  display: block;
+  width: fit-content;
+  margin: 10px auto 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--ex-warn-soft);
+  color: #a86b00;
+}
+@media (prefers-color-scheme: dark) {
+  .exp-root:not([data-theme="light"]) .ex-warn-badge {
+    color: var(--ex-banana);
+  }
+}
+.exp-root[data-theme="dark"] .ex-warn-badge {
+  color: var(--ex-banana);
+}
+
+.ex-stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+.ex-stat {
+  background: var(--ex-bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.ex-stat .k {
+  font-size: 11.5px;
+  color: var(--ex-secondary);
+}
+.ex-stat .v {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.ex-stat .sub {
+  font-size: 11px;
+  color: var(--ex-secondary);
+  margin-top: 1px;
+}
+
+.ex-section-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ex-secondary);
+  margin: 20px 0 10px;
+}
+
+.ex-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.ex-bar-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.ex-bar-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ex-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ex-bar-label .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ex-bar-track {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--ex-bg);
+  overflow: hidden;
+}
+.ex-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+}
+.ex-bar-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ex-placeholder {
+  text-align: center;
+  color: var(--ex-secondary);
+  font-size: 14px;
+  padding: 50px 20px;
+}
+
+.ex-note {
+  font-size: 12.5px;
+  color: var(--ex-secondary);
+  margin-top: 14px;
+  line-height: 1.6;
+}
+
+/* ---- 推移タブ ---- */
+.ex-window-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.ex-window-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ex-separator);
+  background: transparent;
+  color: var(--ex-secondary);
+  cursor: pointer;
+}
+.ex-window-btn[data-active="true"] {
+  background: var(--ex-accent);
+  border-color: var(--ex-accent);
+  color: #fff;
+}
+.ex-chart-scroll {
+  overflow-x: auto;
+}
+.ex-chart-scroll svg {
+  display: block;
+}
+
+/* ---- 一覧タブ ---- */
+.ex-day-group {
+  margin-bottom: 14px;
+}
+.ex-day-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ex-accent);
+  margin-bottom: 6px;
+}
+.ex-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--ex-separator);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ex-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--ex-bg);
+  padding: 10px 12px;
+}
+.ex-item-main {
+  min-width: 0;
+}
+.ex-item-category {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ex-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ex-item-category .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ex-item-memo {
+  font-size: 12px;
+  color: var(--ex-secondary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ex-item-amount {
+  flex: none;
+  text-align: right;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ex-text);
+  font-variant-numeric: tabular-nums;
+}
+.ex-item-amount .sub {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ex-secondary);
+}
+.ex-biz-chip {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ex-business);
+  border-radius: 5px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+
+.ex-month-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ex-separator);
+  font-size: 13px;
+  color: var(--ex-secondary);
+}
+.ex-month-total .v {
+  color: var(--ex-text);
+  font-weight: 700;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}

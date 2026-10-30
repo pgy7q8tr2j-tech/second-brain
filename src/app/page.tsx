@@ -68,6 +68,17 @@ export default async function Home() {
             >
               健康
             </Link>
+            <Link
+              href="/expenses"
+              style={{
+                color: C.accent,
+                textDecoration: "none",
+                fontSize: 16,
+                fontWeight: 500,
+              }}
+            >
+              家計簿
+            </Link>
           </div>
         </div>
         <p style={{ color: C.secondary, fontSize: 13, margin: "6px 0 0" }}>
